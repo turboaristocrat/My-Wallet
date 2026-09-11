@@ -15,30 +15,39 @@ class AppStyles {
   static final BorderRadius roundedL = BorderRadius.circular(radiusL);
   static final BorderRadius roundedXL = BorderRadius.circular(radiusXL);
 
-  // Soft Ambient Box Shadows (inspired by Statok UI)
+  // Soft Ambient Box Shadows (W Wallet reference styling)
   static const List<BoxShadow> softShadow = [
     BoxShadow(
-      color: Color(0x0A000000),
-      blurRadius: 16,
-      offset: Offset(0, 4),
+      color: Color(0x08000000),
+      blurRadius: 20,
+      offset: Offset(0, 6),
       spreadRadius: 0,
     ),
   ];
 
   static const List<BoxShadow> heroGlowShadow = [
     BoxShadow(
-      color: Color(0x1F008080),
+      color: Color(0x3D6366F1), // Royal Indigo glow
       blurRadius: 24,
+      offset: Offset(0, 10),
+      spreadRadius: 0,
+    ),
+  ];
+
+  static const List<BoxShadow> cyanGlowShadow = [
+    BoxShadow(
+      color: Color(0x3300C6FF), // Cyan glow
+      blurRadius: 20,
       offset: Offset(0, 8),
-      spreadRadius: 2,
+      spreadRadius: 0,
     ),
   ];
 
   // Text Styles
   static const TextStyle displayLarge = TextStyle(
-    fontSize: 32,
-    fontWeight: FontWeight.w700,
-    letterSpacing: -0.5,
+    fontSize: 34,
+    fontWeight: FontWeight.w800,
+    letterSpacing: -0.6,
   );
 
   static const TextStyle displayMedium = TextStyle(

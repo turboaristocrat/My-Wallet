@@ -31,35 +31,42 @@ class AppSideDrawer extends ConsumerWidget {
       child: SafeArea(
         child: Column(
           children: [
-            // Drawer Header - Clean App Identity Only
+            // Drawer Header - W Wallet Identity
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
               child: Row(
                 children: [
                   Container(
-                    width: 40,
-                    height: 40,
+                    width: 38,
+                    height: 38,
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
-                        colors: [AppColors.primary, AppColors.primaryLight],
+                        colors: [Color(0xFFC084FC), Color(0xFF8B5CF6), Color(0xFF38BDF8)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
-                      borderRadius: AppStyles.roundedM,
+                      borderRadius: BorderRadius.circular(12),
                       boxShadow: AppStyles.heroGlowShadow,
                     ),
-                    child: const Icon(
-                      Icons.account_balance_wallet_rounded,
-                      color: Colors.white,
-                      size: 22,
+                    child: const Center(
+                      child: Text(
+                        'W',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 22,
+                          letterSpacing: -1,
+                        ),
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 12),
                   Text(
-                    'My Wallet',
+                    'Wallet',
                     style: AppStyles.titleLarge.copyWith(
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.3,
+                      fontSize: 21,
                       color: isDark ? Colors.white : AppColors.lightTextPrimary,
                     ),
                   ),
@@ -237,7 +244,7 @@ class AppSideDrawer extends ConsumerWidget {
                           ),
                           const SizedBox(width: 10),
                           Text(
-                            'Dark Mode',
+                            isDark ? 'Switch to light' : 'Switch to dark',
                             style: AppStyles.bodyMedium.copyWith(
                               color: isDark
                                   ? AppColors.darkTextPrimary
@@ -323,76 +330,99 @@ class AppSideDrawer extends ConsumerWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-      child: ListTile(
-        dense: true,
-        shape: RoundedRectangleBorder(borderRadius: AppStyles.roundedM),
-        tileColor: isSelected
-            ? (isDark
-                ? AppColors.primary.withValues(alpha: 0.15)
-                : AppColors.primaryContainer)
-            : Colors.transparent,
-        leading: Icon(
-          icon,
-          size: 20,
-          color: isSelected
-              ? activeColor
-              : (isDark
-                  ? AppColors.darkTextSecondary
-                  : AppColors.lightTextSecondary),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          gradient: isSelected
+              ? LinearGradient(
+                  colors: isDark
+                      ? [
+                          const Color(0xFF8B5CF6).withValues(alpha: 0.28),
+                          const Color(0xFF6366F1).withValues(alpha: 0.12),
+                        ]
+                      : [
+                          const Color(0xFFEDE9FE),
+                          const Color(0xFFF5F3FF),
+                        ],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                )
+              : null,
+          border: isSelected
+              ? Border.all(
+                  color: isDark
+                      ? const Color(0xFF8B5CF6).withValues(alpha: 0.4)
+                      : const Color(0xFFDDD6FE),
+                  width: 1,
+                )
+              : null,
         ),
-        title: Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+        child: ListTile(
+          dense: true,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          leading: Icon(
+            icon,
+            size: 20,
             color: isSelected
                 ? activeColor
                 : (isDark
-                    ? AppColors.darkTextPrimary
-                    : AppColors.lightTextPrimary),
+                    ? AppColors.darkTextSecondary
+                    : AppColors.lightTextSecondary),
           ),
-        ),
-        trailing: badgeCount != null && badgeCount > 0
-            ? Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.expense,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '$badgeCount',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
+          title: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              color: isSelected
+                  ? (isDark ? Colors.white : AppColors.primary)
+                  : (isDark
+                      ? AppColors.darkTextPrimary
+                      : AppColors.lightTextPrimary),
+            ),
+          ),
+          trailing: badgeCount != null && badgeCount > 0
+              ? Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.expense,
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                ),
-              )
-            : badgeText != null
-                ? Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.aiBadgeContainer,
-                      borderRadius: BorderRadius.circular(8),
+                  child: Text(
+                    '$badgeCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
                     ),
-                    child: Text(
-                      badgeText,
-                      style: const TextStyle(
-                        color: AppColors.aiBadge,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
+                  ),
+                )
+              : badgeText != null
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.aiBadgeContainer,
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    ),
-                  )
-                : null,
-        onTap: () {
-          Navigator.of(context).pop(); // Close drawer
-          if (onNavigate != null) {
-            onNavigate!(route);
-          }
-        },
+                      child: Text(
+                        badgeText,
+                        style: const TextStyle(
+                          color: AppColors.aiBadge,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    )
+                  : null,
+          onTap: () {
+            Navigator.of(context).pop(); // Close drawer
+            if (onNavigate != null) {
+              onNavigate!(route);
+            }
+          },
+        ),
       ),
     );
   }
