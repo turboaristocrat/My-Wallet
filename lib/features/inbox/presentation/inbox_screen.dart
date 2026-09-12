@@ -7,7 +7,6 @@ import '../../../core/theme/theme_provider.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../accounts/data/account_repository.dart';
 import '../../navigation/presentation/side_drawer.dart';
-import '../../transactions/presentation/add_transaction_sheet.dart';
 import '../data/queue_repository.dart';
 
 class InboxScreen extends ConsumerStatefulWidget {
@@ -37,25 +36,44 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
         onNavigate: widget.onNavigate,
       ),
       appBar: AppBar(
+        backgroundColor:
+            isDark ? AppColors.darkBackground : AppColors.lightBackground,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         title: Row(
           children: [
-            const Text('Inbox'),
-            const SizedBox(width: 8),
+            Text(
+              'Inbox',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+                color: isDark ? Colors.white : AppColors.lightTextPrimary,
+              ),
+            ),
+            const SizedBox(width: 10),
             queueAsync.maybeWhen(
               data: (items) => items.isNotEmpty
                   ? Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
+                          horizontal: 9, vertical: 3),
                       decoration: BoxDecoration(
                         color: AppColors.expense,
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.expense.withValues(alpha: 0.4),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
                       child: Text(
                         '${items.length}',
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                     )
@@ -67,29 +85,54 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
         actions: [
           queueAsync.maybeWhen(
             data: (items) => items.isNotEmpty
-                ? TextButton(
-                    onPressed: () async {
-                      final accounts =
-                          accountsAsync.value ?? [];
-                      if (accounts.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Please add an account first')),
-                        );
-                        return;
-                      }
-                      for (final item in items) {
-                        await queueRepo.approveItem(
-                          queueId: item.id,
-                          accountId: item.suggestedAccountId ??
-                              accounts.first.id,
-                          amount: item.suggestedAmount ?? 0.0,
-                          merchantName: item.suggestedMerchant,
-                        );
-                      }
-                    },
-                    child: const Text('Approve All',
-                        style: TextStyle(color: AppColors.primary)),
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: AppColors.primaryGradient,
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: AppStyles.heroGlowShadow,
+                      ),
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                        ),
+                        onPressed: () async {
+                          final accounts = accountsAsync.value ?? [];
+                          if (accounts.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Please add an account first in Accounts screen'),
+                              ),
+                            );
+                            return;
+                          }
+                          for (final item in items) {
+                            await queueRepo.approveItem(
+                              queueId: item.id,
+                              accountId: item.suggestedAccountId ??
+                                  accounts.first.id,
+                              amount: item.suggestedAmount ?? 0.0,
+                              merchantName: item.suggestedMerchant,
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.done_all_rounded, size: 16, color: Colors.white),
+                        label: const Text(
+                          'Approve All',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
                   )
                 : const SizedBox(),
             orElse: () => const SizedBox(),
@@ -99,25 +142,42 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
       ),
       body: Column(
         children: [
-          // Filter Chips
+          // Filter Chips Strip
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               children: [
-                _buildFilterChip('All', 'all'),
+                _buildFilterPill('All', 'all', isDark),
                 const SizedBox(width: 8),
-                _buildFilterChip('Today', 'today'),
+                _buildFilterPill('Today', 'today', isDark),
                 const SizedBox(width: 8),
-                _buildFilterChip('This Week', 'week'),
+                _buildFilterPill('This Week', 'week', isDark),
               ],
             ),
           ),
-          const Divider(height: 1),
+          Divider(
+            height: 1,
+            color: isDark ? AppColors.darkBorder : AppColors.lightDivider,
+          ),
 
           // Queue Items List
           Expanded(
             child: queueAsync.when(
-              data: (items) {
+              data: (allItems) {
+                // Apply filter
+                final now = DateTime.now();
+                final items = allItems.where((item) {
+                  if (_filter == 'today') {
+                    return item.receivedAt.year == now.year &&
+                        item.receivedAt.month == now.month &&
+                        item.receivedAt.day == now.day;
+                  } else if (_filter == 'week') {
+                    final diff = now.difference(item.receivedAt).inDays;
+                    return diff <= 7;
+                  }
+                  return true;
+                }).toList();
+
                 if (items.isEmpty) {
                   return Center(
                     child: Padding(
@@ -126,36 +186,46 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(24),
+                            padding: const EdgeInsets.all(26),
                             decoration: BoxDecoration(
-                              color: AppColors.incomeContainer.withValues(alpha: 0.5),
+                              color: AppColors.income.withValues(alpha: 0.12),
                               shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.income.withValues(alpha: 0.2),
+                                  blurRadius: 20,
+                                  spreadRadius: 2,
+                                ),
+                              ],
                             ),
                             child: const Icon(
                               Icons.celebration_rounded,
                               color: AppColors.income,
-                              size: 54,
+                              size: 52,
                             ),
                           ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 22),
                           Text(
-                            'All Caught Up! 🎉',
-                            style: AppStyles.titleLarge.copyWith(
-                              fontWeight: FontWeight.w700,
+                            'Inbox Zero! 🎉',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.3,
                               color: isDark
                                   ? Colors.white
                                   : AppColors.lightTextPrimary,
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 10),
                           Text(
-                            'Your wallet is clean and serene. Sit back, relax, and enjoy your financial peace of mind!',
+                            'All incoming transactions have been verified and processed. Your wallet records are pristine!',
                             textAlign: TextAlign.center,
-                            style: AppStyles.bodyMedium.copyWith(
+                            style: TextStyle(
+                              fontSize: 14,
                               color: isDark
                                   ? AppColors.darkTextSecondary
                                   : AppColors.lightTextSecondary,
-                              height: 1.4,
+                              height: 1.45,
                             ),
                           ),
                         ],
@@ -178,19 +248,20 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                         padding: const EdgeInsets.only(left: 20),
                         decoration: BoxDecoration(
                           color: AppColors.income,
-                          borderRadius: AppStyles.roundedM,
+                          borderRadius: AppStyles.roundedL,
                         ),
                         alignment: Alignment.centerLeft,
                         child: const Row(
                           children: [
                             Icon(Icons.check_circle_rounded,
-                                color: Colors.white, size: 28),
-                            SizedBox(width: 8),
+                                color: Colors.white, size: 26),
+                            SizedBox(width: 10),
                             Text(
                               'Approve',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
                               ),
                             ),
                           ],
@@ -201,7 +272,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                         padding: const EdgeInsets.only(right: 20),
                         decoration: BoxDecoration(
                           color: AppColors.expense,
-                          borderRadius: AppStyles.roundedM,
+                          borderRadius: AppStyles.roundedL,
                         ),
                         alignment: Alignment.centerRight,
                         child: const Row(
@@ -211,20 +282,20 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                               'Dismiss',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
                               ),
                             ),
-                            SizedBox(width: 8),
+                            SizedBox(width: 10),
                             Icon(Icons.cancel_rounded,
-                                color: Colors.white, size: 28),
+                                color: Colors.white, size: 26),
                           ],
                         ),
                       ),
                       onDismissed: (direction) async {
                         if (direction == DismissDirection.startToEnd) {
                           // Approve
-                          final accounts =
-                              accountsAsync.value ?? [];
+                          final accounts = accountsAsync.value ?? [];
                           await queueRepo.approveItem(
                             queueId: item.id,
                             accountId: item.suggestedAccountId ??
@@ -237,136 +308,235 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                           await queueRepo.dismissItem(item.id);
                         }
                       },
-                      child: InkWell(
-                        onTap: () {
-                          // Open edit sheet with prefilled values
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            useSafeArea: true,
-                            builder: (_) => const AddTransactionSheet(),
-                          );
-                        },
-                        borderRadius: AppStyles.roundedM,
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? AppColors.darkCard
+                              : AppColors.lightCard,
+                          borderRadius: AppStyles.roundedL,
+                          border: Border.all(
                             color: isDark
-                                ? AppColors.darkCard
-                                : AppColors.lightCard,
-                            borderRadius: AppStyles.roundedM,
-                            border: Border.all(
-                              color: isDark
-                                  ? AppColors.darkBorder
-                                  : AppColors.lightBorder,
-                            ),
-                            boxShadow: AppStyles.softShadow,
+                                ? AppColors.darkBorder
+                                : AppColors.lightBorder,
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
+                          boxShadow: AppStyles.softShadow,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Top strip: Sender + Time
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Icon(
+                                        Icons.sms_rounded,
+                                        size: 14,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      item.sender,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: isDark
+                                            ? AppColors.darkTextSecondary
+                                            : AppColors.lightTextSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Text(
+                                  DateFormat('dd MMM • hh:mm a')
+                                      .format(item.receivedAt),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: isDark
+                                        ? AppColors.darkTextTertiary
+                                        : AppColors.lightTextSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Center: Merchant name + Amount
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    item.suggestedMerchant ??
+                                        'Transaction Alert',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: isDark
+                                          ? Colors.white
+                                          : AppColors.lightTextPrimary,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  CurrencyFormatter.format(
+                                    item.suggestedAmount ?? 0.0,
+                                    hideAmount: hideAmounts,
+                                    showSign: true,
+                                  ),
+                                  style: const TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -0.3,
+                                    color: AppColors.expense,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+
+                            // Bottom Strip: AI Confidence Tag + One-tap buttons for Desktop/Web convenience
+                            Row(
+                              children: [
+                                // AI or Regex Pill
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 9, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: item.parserUsed == 'regex'
+                                        ? AppColors.primary.withValues(alpha: 0.16)
+                                        : AppColors.aiBadge.withValues(alpha: 0.16),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: item.parserUsed == 'regex'
+                                          ? AppColors.primary.withValues(alpha: 0.3)
+                                          : AppColors.aiBadge.withValues(alpha: 0.3),
+                                      width: 0.8,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Icon(Icons.sms_outlined,
-                                          size: 16,
-                                          color: AppColors.primary),
-                                      const SizedBox(width: 6),
+                                      Icon(
+                                        item.parserUsed == 'regex'
+                                            ? Icons.check_circle_outline_rounded
+                                            : Icons.auto_awesome_rounded,
+                                        size: 11,
+                                        color: item.parserUsed == 'regex'
+                                            ? AppColors.primaryLight
+                                            : AppColors.aiBadge,
+                                      ),
+                                      const SizedBox(width: 4),
                                       Text(
-                                        item.sender,
-                                        style: AppStyles.labelSmall.copyWith(
-                                          fontWeight: FontWeight.w700,
-                                          color: isDark
-                                              ? AppColors.darkTextSecondary
-                                              : AppColors.lightTextSecondary,
+                                        item.parserUsed == 'regex'
+                                            ? 'Regex 100%'
+                                            : 'AI ${(item.confidenceScore! * 100).toInt()}%',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                          color: item.parserUsed == 'regex'
+                                              ? (isDark ? AppColors.primaryLight : AppColors.primary)
+                                              : AppColors.aiBadge,
                                         ),
                                       ),
                                     ],
                                   ),
-                                  Text(
-                                    DateFormat('hh:mm a')
-                                        .format(item.receivedAt),
-                                    style: AppStyles.labelSmall.copyWith(
-                                      color: isDark
-                                          ? AppColors.darkTextSecondary
-                                          : AppColors.lightTextSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      item.suggestedMerchant ??
-                                          'Transaction Alert',
-                                      style: AppStyles.titleMedium.copyWith(
-                                        color: isDark
-                                            ? Colors.white
-                                            : AppColors.lightTextPrimary,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                  Text(
-                                    CurrencyFormatter.format(
-                                      item.suggestedAmount ?? 0.0,
-                                      hideAmount: hideAmounts,
-                                      showSign: true,
-                                    ),
-                                    style: const TextStyle(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.expense,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  Container(
+                                ),
+                                const Spacer(),
+
+                                // Dismiss button
+                                InkWell(
+                                  onTap: () async {
+                                    await queueRepo.dismissItem(item.id);
+                                  },
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Container(
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 3),
+                                        horizontal: 10, vertical: 5),
                                     decoration: BoxDecoration(
-                                      color: item.parserUsed == 'regex'
-                                          ? AppColors.primaryContainer
-                                          : AppColors.aiBadgeContainer,
-                                      borderRadius: BorderRadius.circular(6),
+                                      color: AppColors.expense.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(8),
                                     ),
-                                    child: Text(
-                                      item.parserUsed == 'regex'
-                                          ? 'Regex ✓'
-                                          : 'AI ${(item.confidenceScore! * 100).toInt()}%',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: item.parserUsed == 'regex'
-                                            ? AppColors.primary
-                                            : AppColors.aiBadge,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Swipe right to confirm',
-                                    style: AppStyles.labelSmall.copyWith(
-                                      color: isDark
-                                          ? AppColors.darkTextSecondary
-                                          : AppColors.lightTextSecondary,
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.close_rounded,
+                                            size: 14, color: AppColors.expense),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          'Dismiss',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.expense,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ],
-                              ),
-                            ],
-                          ),
+                                ),
+                                const SizedBox(width: 8),
+
+                                // Approve button
+                                InkWell(
+                                  onTap: () async {
+                                    final accounts = accountsAsync.value ?? [];
+                                    if (accounts.isEmpty) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Please add an account first in Accounts'),
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                    await queueRepo.approveItem(
+                                      queueId: item.id,
+                                      accountId: item.suggestedAccountId ?? accounts.first.id,
+                                      amount: item.suggestedAmount ?? 0.0,
+                                      merchantName: item.suggestedMerchant,
+                                    );
+                                  },
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      gradient: AppColors.primaryGradient,
+                                      borderRadius: BorderRadius.circular(8),
+                                      boxShadow: AppStyles.heroGlowShadow,
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.check_rounded,
+                                            size: 14, color: Colors.white),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          'Approve',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     );
@@ -382,31 +552,40 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     );
   }
 
-  Widget _buildFilterChip(String label, String value) {
+  Widget _buildFilterPill(String label, String value, bool isDark) {
     final isSelected = _filter == value;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return ChoiceChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (selected) {
-        if (selected) setState(() => _filter = value);
-      },
-      selectedColor: AppColors.primary,
-      backgroundColor: isDark ? AppColors.darkCard : AppColors.lightCard,
-      labelStyle: TextStyle(
-        color: isSelected
-            ? Colors.white
-            : (isDark
-                ? AppColors.darkTextPrimary
-                : AppColors.lightTextPrimary),
-        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-      ),
-      side: BorderSide(
-        color: isSelected
-            ? AppColors.primary
-            : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+    return GestureDetector(
+      onTap: () => setState(() => _filter = value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          gradient: isSelected ? AppColors.primaryGradient : null,
+          color: isSelected
+              ? null
+              : (isDark ? AppColors.darkCard : AppColors.lightCard),
+          borderRadius: BorderRadius.circular(20),
+          border: isSelected
+              ? null
+              : Border.all(
+                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                ),
+          boxShadow: isSelected ? AppStyles.heroGlowShadow : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected
+                ? Colors.white
+                : (isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.lightTextSecondary),
+          ),
+        ),
       ),
     );
   }
 }
+

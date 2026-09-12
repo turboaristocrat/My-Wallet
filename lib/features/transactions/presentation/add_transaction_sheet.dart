@@ -148,11 +148,13 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     final categoriesAsync = ref.watch(categoriesStreamProvider);
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBackground : Colors.white,
+      backgroundColor:
+          isDark ? AppColors.darkBackground : AppColors.lightBackground,
       appBar: AppBar(
-        backgroundColor: AppColors.primaryDark,
-        foregroundColor: Colors.white,
+        backgroundColor: isDark ? AppColors.darkBackground : Colors.white,
+        foregroundColor: isDark ? Colors.white : AppColors.lightTextPrimary,
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.close_rounded),
           onPressed: () => Navigator.of(context).pop(),
@@ -161,27 +163,32 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           widget.initialTransaction != null
               ? 'Edit Transaction'
               : 'Add Transaction',
-          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 18,
+            letterSpacing: -0.3,
+            color: isDark ? Colors.white : AppColors.lightTextPrimary,
+          ),
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.check_rounded),
+            color: AppColors.income,
             onPressed: () => _saveTransaction(),
           ),
         ],
       ),
       body: Column(
         children: [
-          // TOP EMERALD ZONE: Toggle, Amount, Account/Category Selectors
+          // TOP HERO ZONE: Type Toggle, Dynamic Amount, Account & Category Selectors
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppColors.primaryDark, AppColors.primary],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: AppColors.cardGradientViolet,
+              borderRadius: AppStyles.roundedL,
+              boxShadow: AppStyles.heroGlowShadow,
             ),
             child: Column(
               children: [
@@ -189,8 +196,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(30),
+                    color: Colors.black.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(24),
                   ),
                   child: Row(
                     children: [
@@ -200,19 +207,26 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
 
-                // Large Amount Display
+                // Large Bold Amount Display
                 Text(
                   '₹ $_amountStr',
                   style: const TextStyle(
-                    fontSize: 42,
+                    fontSize: 44,
                     fontWeight: FontWeight.w800,
                     color: Colors.white,
-                    letterSpacing: -0.5,
+                    letterSpacing: -0.6,
+                    shadows: [
+                      Shadow(
+                        color: Color(0x33000000),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 16),
 
                 // Account & Category Selectors
                 Row(
@@ -229,8 +243,11 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.18),
-                              borderRadius: AppStyles.roundedM,
+                              color: Colors.black.withValues(alpha: 0.22),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.15),
+                              ),
                             ),
                             child: DropdownButtonHideUnderline(
                               child: DropdownButton<String>(
@@ -243,7 +260,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                                     color: Colors.white),
                                 style: const TextStyle(
                                     color: Colors.white,
-                                    fontWeight: FontWeight.w600),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13),
                                 isExpanded: true,
                                 items: accounts.map((a) {
                                   return DropdownMenuItem(
@@ -279,15 +297,21 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 12, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.18),
-                                    borderRadius: AppStyles.roundedM,
+                                    color: Colors.black.withValues(alpha: 0.22),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.15),
+                                    ),
                                   ),
                                   child: DropdownButtonHideUnderline(
                                     child: DropdownButton<String>(
                                       value: _selectedToAccountId,
                                       hint: const Text(
                                         'To Account',
-                                        style: TextStyle(color: Colors.white70),
+                                        style: TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600),
                                       ),
                                       dropdownColor: isDark
                                           ? AppColors.darkCard
@@ -297,7 +321,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                                           color: Colors.white),
                                       style: const TextStyle(
                                           color: Colors.white,
-                                          fontWeight: FontWeight.w600),
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13),
                                       isExpanded: true,
                                       items: accounts.map((a) {
                                         return DropdownMenuItem(
@@ -331,8 +356,11 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 12, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.18),
-                                    borderRadius: AppStyles.roundedM,
+                                    color: Colors.black.withValues(alpha: 0.22),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.15),
+                                    ),
                                   ),
                                   child: DropdownButtonHideUnderline(
                                     child: DropdownButton<String>(
@@ -345,7 +373,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                                           color: Colors.white),
                                       style: const TextStyle(
                                           color: Colors.white,
-                                          fontWeight: FontWeight.w600),
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13),
                                       isExpanded: true,
                                       items: categories.map((c) {
                                         return DropdownMenuItem(
@@ -386,25 +415,26 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
+                  Icon(
+                    _isDetailsExpanded
+                        ? Icons.keyboard_arrow_down_rounded
+                        : Icons.keyboard_arrow_up_rounded,
+                    size: 18,
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.lightTextSecondary,
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   Text(
                     _isDetailsExpanded
-                        ? 'Hide Details'
-                        : '↑ Swipe / Tap for more details',
+                        ? 'Hide Details (Show Keypad)'
+                        : 'Show Details & Notes',
                     style: TextStyle(
                       fontSize: 12,
                       color: isDark
                           ? AppColors.darkTextSecondary
                           : AppColors.lightTextSecondary,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
@@ -412,7 +442,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             ),
           ),
 
-          // BOTTOM VIEW: Either Numpad (fast) OR Details Form (expanded)
+          // BOTTOM VIEW: Either Numpad (fast entry) OR Details Form (expanded)
           Expanded(
             child: _isDetailsExpanded
                 ? _buildDetailsForm(isDark)
@@ -423,24 +453,35 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     );
   }
 
-  Widget _buildTypeTab(String typeVal, String label, Color activeIndicator) {
+  Widget _buildTypeTab(String typeVal, String label, Color activeAccent) {
     final isSelected = _type == typeVal;
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() => _type = typeVal),
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
             color: isSelected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: activeAccent.withValues(alpha: 0.35),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
           alignment: Alignment.center,
           child: Text(
             label,
             style: TextStyle(
               fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: isSelected ? AppColors.primaryDark : Colors.white70,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.4,
+              color: isSelected ? activeAccent : Colors.white70,
             ),
           ),
         ),
@@ -458,13 +499,16 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     ];
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
       child: Column(
         children: buttons.map((row) {
           return Expanded(
             child: Row(
               children: row.map((val) {
                 if (val.isEmpty) return const Spacer();
+                final isAction = val == '✓';
+                final isClear = val == 'C' || val == '⌫';
+
                 return Expanded(
                   child: Padding(
                     padding: const EdgeInsets.all(5.0),
@@ -476,32 +520,44 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                           _onNumpadPress(val);
                         }
                       },
-                      borderRadius: AppStyles.roundedM,
+                      borderRadius: BorderRadius.circular(16),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: val == '✓'
-                              ? AppColors.primary
-                              : (isDark
-                                  ? AppColors.darkCard
-                                  : AppColors.lightBackground),
-                          borderRadius: AppStyles.roundedM,
+                          gradient: isAction ? AppColors.primaryGradient : null,
+                          color: isAction
+                              ? null
+                              : (isClear
+                                  ? (isDark
+                                      ? AppColors.darkSurface
+                                      : AppColors.expenseContainer.withValues(alpha: 0.3))
+                                  : (isDark
+                                      ? AppColors.darkCard
+                                      : Colors.white)),
+                          borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: isDark
-                                ? AppColors.darkBorder
-                                : AppColors.lightBorder,
+                            color: isAction
+                                ? Colors.transparent
+                                : (isDark
+                                    ? AppColors.darkBorder
+                                    : AppColors.lightBorder),
                           ),
+                          boxShadow: isAction
+                              ? AppStyles.heroGlowShadow
+                              : AppStyles.softShadow,
                         ),
                         alignment: Alignment.center,
                         child: Text(
                           val,
                           style: TextStyle(
                             fontSize: 22,
-                            fontWeight: FontWeight.w600,
-                            color: val == '✓'
+                            fontWeight: FontWeight.w700,
+                            color: isAction
                                 ? Colors.white
-                                : (isDark
-                                    ? Colors.white
-                                    : AppColors.lightTextPrimary),
+                                : (isClear
+                                    ? AppColors.expense
+                                    : (isDark
+                                        ? Colors.white
+                                        : AppColors.lightTextPrimary)),
                           ),
                         ),
                       ),
@@ -519,18 +575,29 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   // Expanded Pull-up Details Form
   Widget _buildDetailsForm(bool isDark) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Payee / Merchant
           TextField(
             controller: _payeeController,
+            style: TextStyle(
+              color: isDark ? Colors.white : AppColors.lightTextPrimary,
+            ),
             decoration: InputDecoration(
               labelText: 'Payee / Merchant',
               hintText: 'e.g. Swiggy, Starbucks, Uber',
               prefixIcon: const Icon(Icons.store_rounded, size: 20),
+              filled: true,
+              fillColor: isDark ? AppColors.darkCard : Colors.white,
               border: OutlineInputBorder(borderRadius: AppStyles.roundedM),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: AppStyles.roundedM,
+                borderSide: BorderSide(
+                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 14),
@@ -549,15 +616,29 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                     );
                     if (d != null) setState(() => _selectedDate = d);
                   },
+                  borderRadius: AppStyles.roundedM,
                   child: InputDecorator(
                     decoration: InputDecoration(
                       labelText: 'Date',
-                      border:
-                          OutlineInputBorder(borderRadius: AppStyles.roundedM),
+                      filled: true,
+                      fillColor: isDark ? AppColors.darkCard : Colors.white,
+                      border: OutlineInputBorder(borderRadius: AppStyles.roundedM),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: AppStyles.roundedM,
+                        borderSide: BorderSide(
+                          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                        ),
+                      ),
                       prefixIcon:
                           const Icon(Icons.calendar_today_rounded, size: 18),
                     ),
-                    child: Text(DateFormat('dd MMM yyyy').format(_selectedDate)),
+                    child: Text(
+                      DateFormat('dd MMM yyyy').format(_selectedDate),
+                      style: TextStyle(
+                        color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -571,14 +652,28 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                     );
                     if (t != null) setState(() => _selectedTime = t);
                   },
+                  borderRadius: AppStyles.roundedM,
                   child: InputDecorator(
                     decoration: InputDecoration(
                       labelText: 'Time',
-                      border:
-                          OutlineInputBorder(borderRadius: AppStyles.roundedM),
+                      filled: true,
+                      fillColor: isDark ? AppColors.darkCard : Colors.white,
+                      border: OutlineInputBorder(borderRadius: AppStyles.roundedM),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: AppStyles.roundedM,
+                        borderSide: BorderSide(
+                          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                        ),
+                      ),
                       prefixIcon: const Icon(Icons.access_time_rounded, size: 18),
                     ),
-                    child: Text(_selectedTime.format(context)),
+                    child: Text(
+                      _selectedTime.format(context),
+                      style: TextStyle(
+                        color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -589,10 +684,23 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           // Payment Mode
           DropdownButtonFormField<String>(
             initialValue: _paymentType,
+            dropdownColor: isDark ? AppColors.darkCard : Colors.white,
+            style: TextStyle(
+              color: isDark ? Colors.white : AppColors.lightTextPrimary,
+              fontWeight: FontWeight.w600,
+            ),
             decoration: InputDecoration(
               labelText: 'Payment Mode',
               prefixIcon: const Icon(Icons.payment_rounded, size: 20),
+              filled: true,
+              fillColor: isDark ? AppColors.darkCard : Colors.white,
               border: OutlineInputBorder(borderRadius: AppStyles.roundedM),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: AppStyles.roundedM,
+                borderSide: BorderSide(
+                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                ),
+              ),
             ),
             items: const [
               DropdownMenuItem(value: 'upi', child: Text('UPI (Google Pay, PhonePe, Paytm)')),
@@ -607,11 +715,22 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           // Note
           TextField(
             controller: _noteController,
+            style: TextStyle(
+              color: isDark ? Colors.white : AppColors.lightTextPrimary,
+            ),
             decoration: InputDecoration(
               labelText: 'Note',
               hintText: 'Add an optional description...',
               prefixIcon: const Icon(Icons.note_alt_outlined, size: 20),
+              filled: true,
+              fillColor: isDark ? AppColors.darkCard : Colors.white,
               border: OutlineInputBorder(borderRadius: AppStyles.roundedM),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: AppStyles.roundedM,
+                borderSide: BorderSide(
+                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 14),
@@ -621,14 +740,23 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             style: OutlinedButton.styleFrom(
               minimumSize: const Size(double.infinity, 48),
               shape: RoundedRectangleBorder(borderRadius: AppStyles.roundedM),
+              side: BorderSide(
+                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+              ),
             ),
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('AI Receipt Scanning available in Phase 2')),
               );
             },
-            icon: const Icon(Icons.receipt_long_rounded),
-            label: const Text('Attach Receipt (AI Scanning) ✨'),
+            icon: const Icon(Icons.receipt_long_rounded, color: AppColors.primary),
+            label: Text(
+              'Attach Receipt (AI Scanning) ✨',
+              style: TextStyle(
+                color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
           const SizedBox(height: 24),
 
@@ -638,28 +766,49 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               Expanded(
                 child: OutlinedButton(
                   style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 50),
+                    minimumSize: const Size(double.infinity, 52),
                     shape: RoundedRectangleBorder(
                         borderRadius: AppStyles.roundedM),
+                    side: BorderSide(
+                      color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                    ),
                   ),
                   onPressed: () => _saveTransaction(addAnother: true),
-                  child: const Text('Save & Add Another'),
+                  child: Text(
+                    'Save & Add Another',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 50),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: AppStyles.roundedM),
+                child: Container(
+                  height: 52,
+                  decoration: BoxDecoration(
+                    borderRadius: AppStyles.roundedM,
+                    gradient: AppColors.primaryGradient,
+                    boxShadow: AppStyles.heroGlowShadow,
                   ),
-                  onPressed: () => _saveTransaction(),
-                  child: const Text(
-                    'Save Transaction',
-                    style: TextStyle(fontWeight: FontWeight.w600),
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      minimumSize: const Size(double.infinity, 52),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: AppStyles.roundedM),
+                    ),
+                    onPressed: () => _saveTransaction(),
+                    child: const Text(
+                      'Save Transaction',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        fontSize: 15,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -670,3 +819,4 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     );
   }
 }
+
