@@ -12,6 +12,9 @@ import 'features/onboarding/presentation/onboarding_screen.dart';
 import 'features/recurring/presentation/recurring_screen.dart';
 import 'features/reports/presentation/reports_screen.dart';
 import 'features/rules/presentation/rules_screen.dart';
+import 'features/copilot/presentation/copilot_screen.dart';
+import 'features/settings/presentation/settings_screen.dart';
+import 'features/split/presentation/split_expenses_screen.dart';
 import 'features/transactions/presentation/add_transaction_sheet.dart';
 import 'features/transactions/presentation/transactions_screen.dart';
 
@@ -98,8 +101,13 @@ class _MyWalletAppState extends ConsumerState<MyWalletApp> {
               return RecurringScreen(onNavigate: _navigateTo);
             case '/debts':
               return DebtsScreen(onNavigate: _navigateTo);
-            case '/backup':
+            case '/copilot':
+              return CopilotScreen(onNavigate: _navigateTo);
+            case '/split_expenses':
+              return SplitExpensesScreen(onNavigate: _navigateTo);
             case '/settings':
+              return SettingsScreen(onNavigate: _navigateTo);
+            case '/backup':
               return BackupScreen(onNavigate: _navigateTo);
             case '/dashboard':
             default:

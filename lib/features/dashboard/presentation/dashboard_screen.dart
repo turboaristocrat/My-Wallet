@@ -124,16 +124,29 @@ class DashboardScreen extends ConsumerWidget {
                 ),
             ],
           ),
+          IconButton(
+            tooltip: 'AI Financial Copilot',
+            icon: const Icon(
+              Icons.auto_awesome_rounded,
+              size: 20,
+              color: AppColors.primary,
+            ),
+            onPressed: () => onNavigate('/copilot'),
+          ),
           const SizedBox(width: 4),
           Padding(
             padding: const EdgeInsets.only(right: 16),
-            child: CircleAvatar(
-              radius: 17,
-              backgroundColor: AppColors.primary.withValues(alpha: 0.2),
-              child: const Icon(
-                Icons.person_rounded,
-                size: 20,
-                color: AppColors.primary,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => onNavigate('/settings'),
+              child: CircleAvatar(
+                radius: 17,
+                backgroundColor: AppColors.primary.withValues(alpha: 0.2),
+                child: const Icon(
+                  Icons.person_rounded,
+                  size: 20,
+                  color: AppColors.primary,
+                ),
               ),
             ),
           ),

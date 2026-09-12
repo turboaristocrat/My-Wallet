@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_styles.dart';
 import '../../../core/database/app_database.dart';
 import '../../accounts/data/account_repository.dart';
+import '../../receipts/data/receipt_scanner_service.dart';
 import '../data/transaction_repository.dart';
 
 class AddTransactionSheet extends ConsumerStatefulWidget {
@@ -30,6 +31,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   String _status = 'cleared';
   final List<String> _tags = [];
   bool _isDetailsExpanded = false;
+  String? _attachedReceiptSummary;
 
   @override
   void initState() {
@@ -735,29 +737,59 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           ),
           const SizedBox(height: 14),
 
-          // Receipt Attachment placeholder
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 48),
-              shape: RoundedRectangleBorder(borderRadius: AppStyles.roundedM),
-              side: BorderSide(
-                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+          // Receipt Attachment Widget
+          if (_attachedReceiptSummary != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.incomeGreen.withValues(alpha: 0.15),
+                borderRadius: AppStyles.roundedM,
+                border: Border.all(color: AppColors.incomeGreen.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.receipt_rounded,
+                      color: AppColors.incomeGreen, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Attached: $_attachedReceiptSummary',
+                      style: const TextStyle(
+                        color: AppColors.incomeGreen,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded,
+                        size: 18, color: AppColors.incomeGreen),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () => setState(() => _attachedReceiptSummary = null),
+                  ),
+                ],
+              ),
+            )
+          else
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 48),
+                shape: RoundedRectangleBorder(borderRadius: AppStyles.roundedM),
+                side: BorderSide(
+                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                ),
+              ),
+              onPressed: () => _openReceiptScannerDialog(context),
+              icon: const Icon(Icons.receipt_long_rounded, color: AppColors.primary),
+              label: Text(
+                'Scan / Attach Receipt ✨',
+                style: TextStyle(
+                  color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('AI Receipt Scanning available in Phase 2')),
-              );
-            },
-            icon: const Icon(Icons.receipt_long_rounded, color: AppColors.primary),
-            label: Text(
-              'Attach Receipt (AI Scanning) ✨',
-              style: TextStyle(
-                color: isDark ? Colors.white : AppColors.lightTextPrimary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
           const SizedBox(height: 24),
 
           // Action Buttons: Save & Add Another and Save
@@ -813,6 +845,127 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openReceiptScannerDialog(BuildContext context) {
+    final controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.receipt_long_rounded, color: AppColors.primary),
+            SizedBox(width: 8),
+            Text('Scan / Paste Receipt'),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Paste raw OCR receipt text or pick a sample receipt to auto-fill transaction details:',
+                  style: TextStyle(fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                // Preset chips
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    ActionChip(
+                      label: const Text('☕ Starbucks (₹350)',
+                          style: TextStyle(fontSize: 11)),
+                      onPressed: () {
+                        controller.text =
+                            'STARBUCKS COFFEE INDIRANAGAR\nDate: 12/09/2026\n1x Caffe Latte: 280.00\n1x Croissant: 70.00\nTOTAL AMOUNT: Rs. 350.00';
+                      },
+                    ),
+                    ActionChip(
+                      label: const Text('🛒 D-Mart (₹2,450)',
+                          style: TextStyle(fontSize: 11)),
+                      onPressed: () {
+                        controller.text =
+                            'DMART RETAIL SUPERMARKET\nDate: 11/09/2026\nGrocery items: 2450.00\nGRAND TOTAL: Rs. 2450.00';
+                      },
+                    ),
+                    ActionChip(
+                      label: const Text('⛽ Shell Fuel (₹1,200)',
+                          style: TextStyle(fontSize: 11)),
+                      onPressed: () {
+                        controller.text =
+                            'SHELL PETROL STATION\nDate: 10/09/2026\nPower Petrol: 1200.00\nNET AMOUNT: Rs. 1200.00';
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  maxLines: 6,
+                  decoration: InputDecoration(
+                    hintText: 'Paste receipt text here...',
+                    filled: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              final text = controller.text.trim();
+              if (text.isEmpty) return;
+
+              final parsed = ref
+                  .read(receiptScannerServiceProvider)
+                  .parseReceiptText(text);
+
+              setState(() {
+                if (parsed.totalAmount > 0) {
+                  _amountStr = parsed.totalAmount.toStringAsFixed(0);
+                }
+                if (parsed.merchantName.isNotEmpty) {
+                  _payeeController.text = parsed.merchantName;
+                }
+                _selectedDate = parsed.date;
+                _attachedReceiptSummary =
+                    '${parsed.merchantName} (₹${parsed.totalAmount.toStringAsFixed(0)})';
+              });
+
+              Navigator.of(ctx).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Receipt scanned! Auto-filled ${parsed.merchantName} - ₹${parsed.totalAmount.toStringAsFixed(0)}',
+                  ),
+                  backgroundColor: AppColors.incomeGreen,
+                ),
+              );
+            },
+            child: const Text('Parse & Apply'),
           ),
         ],
       ),
