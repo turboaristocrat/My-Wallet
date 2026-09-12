@@ -31,15 +31,39 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   int _kpiPageIndex = 0;
   int _accountsPageIndex = 0;
 
+  static const List<LinearGradient> _accountCardGradients = [
+    AppColors.cardGradientCyanPurple,
+    AppColors.cardGradientSunset,
+    AppColors.cardGradientViolet,
+    LinearGradient(
+      colors: [Color(0xFF0D9488), Color(0xFF10B981), Color(0xFF34D399)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    ),
+    LinearGradient(
+      colors: [Color(0xFF6366F1), Color(0xFF8B5CF6), Color(0xFFEC4899)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    ),
+  ];
+
   @override
   void initState() {
     super.initState();
     _kpiPageController = PageController();
-    _accountsPageController = PageController(viewportFraction: 0.92);
+    _accountsPageController = PageController(viewportFraction: 0.88);
+    _accountsPageController.addListener(_onAccountsPageScroll);
+  }
+
+  void _onAccountsPageScroll() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
   void dispose() {
+    _accountsPageController.removeListener(_onAccountsPageScroll);
     _kpiPageController.dispose();
     _accountsPageController.dispose();
     super.dispose();
@@ -942,7 +966,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               child: Container(
                 width: 120,
                 decoration: BoxDecoration(
-                  gradient: AppColors.cardGradientSunset,
+                  gradient: _accountCardGradients[1],
                   borderRadius: AppStyles.roundedL,
                   boxShadow: const [
                     BoxShadow(
@@ -959,7 +983,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               padding: const EdgeInsets.all(22),
               margin: const EdgeInsets.only(right: 14),
               decoration: BoxDecoration(
-                gradient: AppColors.cardGradientCyanPurple,
+                gradient: _accountCardGradients[0],
                 borderRadius: AppStyles.roundedL,
                 boxShadow: AppStyles.heroGlowShadow,
               ),
@@ -1051,28 +1075,158 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       );
     }
 
-    final cardGradients = [
-      AppColors.cardGradientCyanPurple,
-      AppColors.cardGradientSunset,
-      AppColors.cardGradientViolet,
-      const LinearGradient(
-        colors: [Color(0xFF0D9488), Color(0xFF10B981), Color(0xFF34D399)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ),
-      const LinearGradient(
-        colors: [Color(0xFF6366F1), Color(0xFF8B5CF6), Color(0xFFEC4899)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ),
-    ];
+    if (accounts.length == 1) {
+      final account = accounts.first;
+      final gradient = _accountCardGradients.first;
+      final mask = account.accountNumberMask != null
+          ? '•••• •••• •••• ${account.accountNumberMask}'
+          : '•••• •••• •••• 0001';
+      final badgeLabel = account.type.toUpperCase().replaceAll('_', ' ');
+
+      return GestureDetector(
+        onTap: () => widget.onNavigate('/accounts'),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // Background peeking card (layered deck visual)
+            Positioned(
+              right: 0,
+              top: 14,
+              bottom: -6,
+              child: Container(
+                width: 120,
+                decoration: BoxDecoration(
+                  gradient: _accountCardGradients[1],
+                  borderRadius: AppStyles.roundedL,
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x3DF43F5E),
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Foreground single account card
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              margin: const EdgeInsets.only(right: 14),
+              decoration: BoxDecoration(
+                gradient: gradient,
+                borderRadius: AppStyles.roundedL,
+                boxShadow: AppStyles.heroGlowShadow,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            account.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.88),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            CurrencyFormatter.format(
+                              account.balance,
+                              hideAmount: hideAmount,
+                            ),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 9, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.22),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          badgeLabel,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    mask,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      letterSpacing: 2.0,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            _getAccountTypeIcon(account.type),
+                            color: Colors.white.withValues(alpha: 0.9),
+                            size: 16,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _getAccountTypeDisplayName(account.type),
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.85),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Icon(
+                        Icons.contactless_rounded,
+                        color: Colors.white.withValues(alpha: 0.9),
+                        size: 18,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Column(
       children: [
         SizedBox(
-          height: 195,
+          height: 200,
           child: PageView.builder(
             controller: _accountsPageController,
+            clipBehavior: Clip.none,
             itemCount: accounts.length,
             onPageChanged: (idx) {
               setState(() {
@@ -1081,119 +1235,157 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             },
             itemBuilder: (context, index) {
               final account = accounts[index];
-              final gradient = cardGradients[index % cardGradients.length];
+              final gradient =
+                  _accountCardGradients[index % _accountCardGradients.length];
               final mask = account.accountNumberMask != null
                   ? '•••• •••• •••• ${account.accountNumberMask}'
                   : '•••• •••• •••• ${index.toString().padLeft(4, '0')}';
               final badgeLabel =
                   account.type.toUpperCase().replaceAll('_', ' ');
 
-              return GestureDetector(
-                onTap: () => widget.onNavigate('/accounts'),
-                child: Container(
-                  margin: EdgeInsets.only(
-                    right: accounts.length > 1 ? 12 : 0,
-                    left: index == 0 ? 0 : 4,
-                  ),
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: gradient,
-                    borderRadius: AppStyles.roundedL,
-                    boxShadow: AppStyles.heroGlowShadow,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                account.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.85),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                ),
+              // Real-time continuous scroll position for 3D card deck animation
+              double pageOffset = 0.0;
+              if (_accountsPageController.position.haveDimensions) {
+                pageOffset =
+                    (_accountsPageController.page ?? _accountsPageIndex.toDouble()) -
+                        index;
+              } else {
+                pageOffset = (_accountsPageIndex - index).toDouble();
+              }
+
+              final absOffset = pageOffset.abs();
+              final isUnderneath = pageOffset < 0; // Next card, sitting underneath on the right
+
+              // When underneath: scaled down to 0.88, translated down by 10px, tucked left
+              // As the user swipes towards this card, it expands to 1.0, rises to Y=0, and comes to front!
+              final progress = (1.0 - absOffset).clamp(0.0, 1.0);
+              final scale = 0.88 + (0.12 * progress);
+              final translateY = 10.0 * (1.0 - progress);
+              final translateX = isUnderneath ? (-22.0 * (1.0 - progress)) : 0.0;
+              final opacity = (0.72 + (0.28 * progress)).clamp(0.0, 1.0);
+
+              return Transform.translate(
+                offset: Offset(translateX, translateY),
+                child: Transform.scale(
+                  scale: scale,
+                  alignment:
+                      isUnderneath ? Alignment.centerLeft : Alignment.centerRight,
+                  child: Opacity(
+                    opacity: opacity,
+                    child: GestureDetector(
+                      onTap: () => widget.onNavigate('/accounts'),
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 6),
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          gradient: gradient,
+                          borderRadius: AppStyles.roundedL,
+                          boxShadow: [
+                            BoxShadow(
+                              color: gradient.colors.first.withValues(
+                                alpha: 0.25 + (0.25 * progress),
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                CurrencyFormatter.format(
-                                  account.balance,
-                                  hideAmount: hideAmount,
-                                ),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.5,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 9, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.22),
-                              borderRadius: BorderRadius.circular(8),
+                              blurRadius: 10 + (12 * progress),
+                              offset: Offset(0, 4 + (6 * progress)),
                             ),
-                            child: Text(
-                              badgeLabel,
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      account.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(alpha: 0.88),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      CurrencyFormatter.format(
+                                        account.balance,
+                                        hideAmount: hideAmount,
+                                      ),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: -0.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 9, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.22),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    badgeLabel,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 0.8,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              mask,
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.8,
+                                fontSize: 13,
+                                letterSpacing: 2.0,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      Text(
-                        mask,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          letterSpacing: 2.0,
-                          fontWeight: FontWeight.w600,
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      _getAccountTypeIcon(account.type),
+                                      color: Colors.white.withValues(alpha: 0.9),
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      _getAccountTypeDisplayName(account.type),
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(alpha: 0.85),
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Icon(
+                                  Icons.contactless_rounded,
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  size: 18,
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                _getAccountTypeIcon(account.type),
-                                color: Colors.white.withValues(alpha: 0.9),
-                                size: 16,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                _getAccountTypeDisplayName(account.type),
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.85),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Icon(
-                            Icons.contactless_rounded,
-                            color: Colors.white.withValues(alpha: 0.9),
-                            size: 18,
-                          ),
-                        ],
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               );
@@ -1282,7 +1474,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       );
     }
 
-    // Responsive Grid of Account Tiles (2 columns)
+    // Responsive Grid of Account Tiles (2 columns) with same vibrant gradients as swipe cards
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -1290,7 +1482,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         crossAxisCount: 2,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
-        childAspectRatio: 1.35,
+        childAspectRatio: 1.30,
       ),
       itemCount: accounts.length + 1, // +1 for "+ Add Account" tile
       itemBuilder: (context, index) {
@@ -1300,24 +1492,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             onTap: onAddAccount,
             borderRadius: AppStyles.roundedL,
             child: Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: isDark
-                    ? AppColors.darkSurface.withValues(alpha: 0.5)
-                    : AppColors.lightBackground,
+                    ? AppColors.darkSurface.withValues(alpha: 0.6)
+                    : AppColors.lightSurface,
                 borderRadius: AppStyles.roundedL,
                 border: Border.all(
-                  color:
-                      isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                  width: 1.2,
+                  color: isDark
+                      ? AppColors.primary.withValues(alpha: 0.5)
+                      : AppColors.primary.withValues(alpha: 0.35),
+                  width: 1.5,
                 ),
+                boxShadow: AppStyles.softShadow,
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Container(
-                    width: 34,
-                    height: 34,
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
                       color: AppColors.primary.withValues(alpha: 0.15),
                       shape: BoxShape.circle,
@@ -1325,7 +1519,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     child: const Icon(
                       Icons.add_rounded,
                       color: AppColors.primary,
-                      size: 20,
+                      size: 22,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -1333,7 +1527,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     'Add Account',
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                       color: isDark
                           ? AppColors.primaryLight
                           : AppColors.primary,
@@ -1346,28 +1540,32 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         }
 
         final account = accounts[index];
-        final accentColor = _parseAccountColor(account.colorHex);
-        final isCreditCard = account.type == 'credit_card';
+        final gradient =
+            _accountCardGradients[index % _accountCardGradients.length];
+        final mask = account.accountNumberMask != null
+            ? '•••• ${account.accountNumberMask}'
+            : '•••• ${index.toString().padLeft(4, '0')}';
 
-        return InkWell(
+        return GestureDetector(
           onTap: () => widget.onNavigate('/accounts'),
-          borderRadius: AppStyles.roundedL,
           child: Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: isDark ? AppColors.darkCard : AppColors.lightCard,
+              gradient: gradient,
               borderRadius: AppStyles.roundedL,
-              border: Border.all(
-                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                width: 1,
-              ),
-              boxShadow: AppStyles.softShadow,
+              boxShadow: [
+                BoxShadow(
+                  color: gradient.colors.first.withValues(alpha: 0.35),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Top row: Icon with accent background & type tag
+                // Top row: White translucent icon container + type badge
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -1375,32 +1573,29 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       width: 32,
                       height: 32,
                       decoration: BoxDecoration(
-                        color: accentColor.withValues(alpha: 0.15),
+                        color: Colors.white.withValues(alpha: 0.22),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
                         _getAccountTypeIcon(account.type),
-                        color: accentColor,
+                        color: Colors.white,
                         size: 17,
                       ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
+                          horizontal: 7, vertical: 3),
                       decoration: BoxDecoration(
-                        color: isDark
-                            ? AppColors.darkSurface
-                            : AppColors.lightBackground,
+                        color: Colors.white.withValues(alpha: 0.22),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         _getAccountTypeDisplayName(account.type),
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 9,
-                          fontWeight: FontWeight.w600,
-                          color: isDark
-                              ? AppColors.darkTextSecondary
-                              : AppColors.lightTextSecondary,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: 0.5,
                         ),
                       ),
                     ),
@@ -1414,25 +1609,25 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       account.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
+                      style: const TextStyle(
+                        fontSize: 14,
                         fontWeight: FontWeight.w700,
-                        color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                        color: Colors.white,
                       ),
                     ),
-                    if (account.accountNumberMask != null)
-                      Text(
-                        '•••• ${account.accountNumberMask}',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: isDark
-                              ? AppColors.darkTextSecondary
-                              : AppColors.lightTextSecondary,
-                        ),
+                    const SizedBox(height: 2),
+                    Text(
+                      mask,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 1.0,
                       ),
+                    ),
                   ],
                 ),
-                // Bottom: Balance
+                // Bottom: Formatted Balance in bold white
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
@@ -1441,13 +1636,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       account.balance,
                       hideAmount: hideAmount,
                     ),
-                    style: TextStyle(
-                      fontSize: 15,
+                    style: const TextStyle(
+                      fontSize: 16,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: -0.3,
-                      color: isCreditCard && account.balance < 0
-                          ? AppColors.expense
-                          : (isDark ? Colors.white : AppColors.lightTextPrimary),
+                      letterSpacing: -0.4,
+                      color: Colors.white,
                     ),
                   ),
                 ),
@@ -1490,15 +1683,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         return 'Wallet';
       default:
         return 'Account';
-    }
-  }
-
-  Color _parseAccountColor(String hex) {
-    try {
-      final clean = hex.replaceAll('#', '').replaceAll('0x', '');
-      return Color(int.parse(clean, radix: 16));
-    } catch (_) {
-      return AppColors.primary;
     }
   }
 
