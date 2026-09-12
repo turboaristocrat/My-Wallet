@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/theme_provider.dart';
 import 'features/accounts/presentation/accounts_screen.dart';
 import 'features/auth/presentation/lock_screen.dart';
+import 'features/backup/presentation/backup_screen.dart';
 import 'features/budgets/presentation/budgets_screen.dart';
 import 'features/dashboard/presentation/dashboard_screen.dart';
 import 'features/debts/presentation/debts_screen.dart';
@@ -97,6 +98,9 @@ class _MyWalletAppState extends ConsumerState<MyWalletApp> {
               return RecurringScreen(onNavigate: _navigateTo);
             case '/debts':
               return DebtsScreen(onNavigate: _navigateTo);
+            case '/backup':
+            case '/settings':
+              return BackupScreen(onNavigate: _navigateTo);
             case '/dashboard':
             default:
               return DashboardScreen(

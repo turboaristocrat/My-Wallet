@@ -220,6 +220,13 @@ class AppSideDrawer extends ConsumerWidget {
                   ),
                   _buildDrawerItem(
                     context: context,
+                    icon: Icons.backup_rounded,
+                    label: 'Backup & Export',
+                    route: '/backup',
+                    isSelected: currentRoute == '/backup',
+                  ),
+                  _buildDrawerItem(
+                    context: context,
                     icon: Icons.settings_rounded,
                     label: 'Settings',
                     route: '/settings',
