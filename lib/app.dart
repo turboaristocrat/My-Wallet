@@ -7,6 +7,7 @@ import 'features/budgets/presentation/budgets_screen.dart';
 import 'features/dashboard/presentation/dashboard_screen.dart';
 import 'features/inbox/presentation/inbox_screen.dart';
 import 'features/onboarding/presentation/onboarding_screen.dart';
+import 'features/recurring/presentation/recurring_screen.dart';
 import 'features/reports/presentation/reports_screen.dart';
 import 'features/rules/presentation/rules_screen.dart';
 import 'features/transactions/presentation/add_transaction_sheet.dart';
@@ -91,6 +92,8 @@ class _MyWalletAppState extends ConsumerState<MyWalletApp> {
               return BudgetsScreen(onNavigate: _navigateTo, initialTab: 'goals');
             case '/rules':
               return RulesScreen(onNavigate: _navigateTo);
+            case '/recurring':
+              return RecurringScreen(onNavigate: _navigateTo);
             case '/dashboard':
             default:
               return DashboardScreen(
