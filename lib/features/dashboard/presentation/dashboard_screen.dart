@@ -5,12 +5,13 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_styles.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../../core/database/app_database.dart';
 import '../../accounts/data/account_repository.dart';
 import '../../navigation/presentation/side_drawer.dart';
 import '../../transactions/data/transaction_repository.dart';
 import '../data/dashboard_providers.dart';
 
-class DashboardScreen extends ConsumerWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   final VoidCallback onOpenAddTransaction;
   final ValueChanged<String> onNavigate;
 
@@ -21,7 +22,31 @@ class DashboardScreen extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  late final PageController _kpiPageController;
+  late final PageController _accountsPageController;
+  int _kpiPageIndex = 0;
+  int _accountsPageIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _kpiPageController = PageController();
+    _accountsPageController = PageController(viewportFraction: 0.92);
+  }
+
+  @override
+  void dispose() {
+    _kpiPageController.dispose();
+    _accountsPageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final totalBalance = ref.watch(totalBalanceProvider);
     final monthlyFlowAsync = ref.watch(monthlyFlowProvider);
@@ -35,7 +60,7 @@ class DashboardScreen extends ConsumerWidget {
           isDark ? AppColors.darkBackground : AppColors.lightBackground,
       drawer: AppSideDrawer(
         currentRoute: '/dashboard',
-        onNavigate: onNavigate,
+        onNavigate: widget.onNavigate,
       ),
       appBar: AppBar(
         backgroundColor:
@@ -94,7 +119,7 @@ class DashboardScreen extends ConsumerWidget {
                       ? AppColors.darkTextSecondary
                       : AppColors.lightTextSecondary,
                 ),
-                onPressed: () => onNavigate('/inbox'),
+                onPressed: () => widget.onNavigate('/inbox'),
               ),
               if (pendingCount > 0)
                 Positioned(
@@ -131,14 +156,14 @@ class DashboardScreen extends ConsumerWidget {
               size: 20,
               color: AppColors.primary,
             ),
-            onPressed: () => onNavigate('/copilot'),
+            onPressed: () => widget.onNavigate('/copilot'),
           ),
           const SizedBox(width: 4),
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: InkWell(
               borderRadius: BorderRadius.circular(20),
-              onTap: () => onNavigate('/settings'),
+              onTap: () => widget.onNavigate('/settings'),
               child: CircleAvatar(
                 radius: 17,
                 backgroundColor: AppColors.primary.withValues(alpha: 0.2),
@@ -231,7 +256,7 @@ class DashboardScreen extends ConsumerWidget {
           foregroundColor: Colors.white,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          onPressed: onOpenAddTransaction,
+          onPressed: widget.onOpenAddTransaction,
           child: const Icon(Icons.add_rounded, size: 28),
         ),
       ),
@@ -270,7 +295,7 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  // --- Top 3 KPI Sparkline Cards ---
+  // --- Top KPI Sparkline Cards (Dual Income/Expense + Swipable Investment) ---
   Widget _buildTopKpiCards({
     required BuildContext context,
     required MonthlyFlow flow,
@@ -283,85 +308,162 @@ class DashboardScreen extends ConsumerWidget {
     final investmentVal = (flow.income - flow.expense) > 0
         ? (flow.income - flow.expense)
         : 950.35;
+    final netSavingsVal = flow.income - flow.expense;
 
-    final cards = [
-      _buildSparklineCard(
-        title: 'Income',
-        amount: incomeVal,
-        trend: '↗ +16%',
-        accentColor: AppColors.income,
-        spots: const [
-          FlSpot(0, 10),
-          FlSpot(1, 18),
-          FlSpot(2, 12),
-          FlSpot(3, 24),
-          FlSpot(4, 19),
-          FlSpot(5, 30),
-          FlSpot(6, 25),
-        ],
-        isDark: isDark,
-        hideAmount: hideAmounts,
-      ),
-      _buildSparklineCard(
-        title: 'Expenses',
-        amount: expenseVal,
-        trend: '↘ -36%',
-        accentColor: AppColors.expense,
-        spots: const [
-          FlSpot(0, 24),
-          FlSpot(1, 19),
-          FlSpot(2, 28),
-          FlSpot(3, 16),
-          FlSpot(4, 22),
-          FlSpot(5, 14),
-          FlSpot(6, 12),
-        ],
-        isDark: isDark,
-        hideAmount: hideAmounts,
-      ),
-      _buildSparklineCard(
-        title: 'Investment',
-        amount: investmentVal,
-        trend: '↗ +12%',
-        accentColor: AppColors.investment,
-        spots: const [
-          FlSpot(0, 14),
-          FlSpot(1, 16),
-          FlSpot(2, 15),
-          FlSpot(3, 22),
-          FlSpot(4, 20),
-          FlSpot(5, 27),
-          FlSpot(6, 32),
-        ],
-        isDark: isDark,
-        hideAmount: hideAmounts,
-      ),
-    ];
+    final incomeCard = _buildSparklineCard(
+      title: 'Income',
+      amount: incomeVal,
+      trend: '↗ +16%',
+      accentColor: AppColors.income,
+      spots: const [
+        FlSpot(0, 10),
+        FlSpot(1, 18),
+        FlSpot(2, 12),
+        FlSpot(3, 24),
+        FlSpot(4, 19),
+        FlSpot(5, 30),
+        FlSpot(6, 25),
+      ],
+      isDark: isDark,
+      hideAmount: hideAmounts,
+      isCompact: !isWide,
+    );
+
+    final expenseCard = _buildSparklineCard(
+      title: 'Expenses',
+      amount: expenseVal,
+      trend: '↘ -36%',
+      accentColor: AppColors.expense,
+      spots: const [
+        FlSpot(0, 24),
+        FlSpot(1, 19),
+        FlSpot(2, 28),
+        FlSpot(3, 16),
+        FlSpot(4, 22),
+        FlSpot(5, 14),
+        FlSpot(6, 12),
+      ],
+      isDark: isDark,
+      hideAmount: hideAmounts,
+      isCompact: !isWide,
+    );
+
+    final investmentCard = _buildSparklineCard(
+      title: 'Investment',
+      amount: investmentVal,
+      trend: '↗ +12%',
+      accentColor: AppColors.investment,
+      spots: const [
+        FlSpot(0, 14),
+        FlSpot(1, 16),
+        FlSpot(2, 15),
+        FlSpot(3, 22),
+        FlSpot(4, 20),
+        FlSpot(5, 27),
+        FlSpot(6, 32),
+      ],
+      isDark: isDark,
+      hideAmount: hideAmounts,
+      isCompact: !isWide,
+    );
+
+    final netSavingsCard = _buildSparklineCard(
+      title: 'Net Savings',
+      amount: netSavingsVal != 0 ? netSavingsVal.abs() : 5138.62,
+      trend: netSavingsVal >= 0 ? '↗ Surplus' : '↘ Deficit',
+      accentColor: AppColors.incomeGreen,
+      spots: const [
+        FlSpot(0, 12),
+        FlSpot(1, 15),
+        FlSpot(2, 18),
+        FlSpot(3, 17),
+        FlSpot(4, 23),
+        FlSpot(5, 26),
+        FlSpot(6, 30),
+      ],
+      isDark: isDark,
+      hideAmount: hideAmounts,
+      isCompact: !isWide,
+    );
 
     if (isWide) {
       return Row(
         children: [
-          Expanded(child: cards[0]),
-          const SizedBox(width: 16),
-          Expanded(child: cards[1]),
-          const SizedBox(width: 16),
-          Expanded(child: cards[2]),
+          Expanded(child: incomeCard),
+          const SizedBox(width: 14),
+          Expanded(child: expenseCard),
+          const SizedBox(width: 14),
+          Expanded(child: investmentCard),
+          const SizedBox(width: 14),
+          Expanded(child: netSavingsCard),
         ],
       );
     }
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      clipBehavior: Clip.none,
-      child: Row(
-        children: [
-          SizedBox(width: 250, child: cards[0]),
-          const SizedBox(width: 14),
-          SizedBox(width: 250, child: cards[1]),
-          const SizedBox(width: 14),
-          SizedBox(width: 250, child: cards[2]),
-        ],
-      ),
+    // On mobile: Income and Expense cards together fully visible on Page 0!
+    // Investment card is one swipe away on Page 1.
+    return Column(
+      children: [
+        SizedBox(
+          height: 154,
+          child: PageView(
+            controller: _kpiPageController,
+            onPageChanged: (idx) {
+              setState(() {
+                _kpiPageIndex = idx;
+              });
+            },
+            children: [
+              // Page 0: Income & Expense cards side-by-side fully visible
+              Row(
+                children: [
+                  Expanded(child: incomeCard),
+                  const SizedBox(width: 10),
+                  Expanded(child: expenseCard),
+                ],
+              ),
+              // Page 1: Investment & Net Savings cards side-by-side (one swipe away)
+              Row(
+                children: [
+                  Expanded(child: investmentCard),
+                  const SizedBox(width: 10),
+                  Expanded(child: netSavingsCard),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        // Swiping Page Indicator Dots
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              width: _kpiPageIndex == 0 ? 16 : 6,
+              height: 5,
+              decoration: BoxDecoration(
+                color: _kpiPageIndex == 0
+                    ? AppColors.primary
+                    : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+            const SizedBox(width: 6),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              width: _kpiPageIndex == 1 ? 16 : 6,
+              height: 5,
+              decoration: BoxDecoration(
+                color: _kpiPageIndex == 1
+                    ? AppColors.primary
+                    : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -373,9 +475,15 @@ class DashboardScreen extends ConsumerWidget {
     required List<FlSpot> spots,
     required bool isDark,
     required bool hideAmount,
+    bool isCompact = false,
   }) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: EdgeInsets.fromLTRB(
+        isCompact ? 12 : 16,
+        isCompact ? 12 : 16,
+        isCompact ? 12 : 16,
+        isCompact ? 8 : 8,
+      ),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkCard : AppColors.lightCard,
         borderRadius: AppStyles.roundedL,
@@ -391,81 +499,109 @@ class DashboardScreen extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white : AppColors.lightTextPrimary,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? AppColors.darkSurface
-                      : AppColors.lightBackground,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color:
-                        isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                    width: 0.8,
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: isCompact ? 13 : 14,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : AppColors.lightTextPrimary,
                   ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'this month',
-                      style: TextStyle(
-                        fontSize: 10,
+              ),
+              if (!isCompact)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? AppColors.darkSurface
+                        : AppColors.lightBackground,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color:
+                          isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'this month',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.lightTextSecondary,
+                        ),
+                      ),
+                      const SizedBox(width: 3),
+                      Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 12,
                         color: isDark
                             ? AppColors.darkTextSecondary
                             : AppColors.lightTextSecondary,
                       ),
+                    ],
+                  ),
+                )
+              else
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text(
+                    trend,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: accentColor,
                     ),
-                    const SizedBox(width: 3),
-                    Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      size: 12,
-                      color: isDark
-                          ? AppColors.darkTextSecondary
-                          : AppColors.lightTextSecondary,
-                    ),
-                  ],
+                  ),
                 ),
-              ),
             ],
           ),
-          const SizedBox(height: 10),
-          Text(
-            CurrencyFormatter.format(amount, hideAmount: hideAmount),
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.5,
-              color: isDark ? Colors.white : AppColors.lightTextPrimary,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(6),
-            ),
+          SizedBox(height: isCompact ? 6 : 10),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
             child: Text(
-              trend,
+              CurrencyFormatter.format(amount, hideAmount: hideAmount),
               style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: accentColor,
+                fontSize: isCompact ? 18 : 22,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+                color: isDark ? Colors.white : AppColors.lightTextPrimary,
               ),
             ),
           ),
-          const SizedBox(height: 10),
+          if (!isCompact) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                trend,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: accentColor,
+                ),
+              ),
+            ),
+          ],
+          SizedBox(height: isCompact ? 6 : 10),
           SizedBox(
-            height: 44,
+            height: isCompact ? 36 : 44,
             child: LineChart(
               LineChartData(
                 gridData: const FlGridData(show: false),
@@ -507,7 +643,7 @@ class DashboardScreen extends ConsumerWidget {
     required double totalBalance,
     required bool hideAmounts,
     required bool isDark,
-    required AsyncValue<List<dynamic>> accountsAsync,
+    required AsyncValue<List<Account>> accountsAsync,
     required AsyncValue<MonthlyFlow> monthlyFlowAsync,
     required AsyncValue<List<dynamic>> recentTxnsAsync,
   }) {
@@ -542,7 +678,7 @@ class DashboardScreen extends ConsumerWidget {
                       recentTxnsAsync: recentTxnsAsync,
                       hideAmounts: hideAmounts,
                       isDark: isDark,
-                      onViewAll: () => onNavigate('/transactions'),
+                      onViewAll: () => widget.onNavigate('/transactions'),
                     ),
                   ),
                 ],
@@ -551,24 +687,24 @@ class DashboardScreen extends ConsumerWidget {
           ),
         ),
         const SizedBox(width: 20),
-        // Right Column (My cards & Quick actions)
+        // Right Column (My Accounts & Quick actions)
         Expanded(
           flex: 4,
           child: Column(
             children: [
-              _buildMyCardsSection(
+              _buildMyAccountsSection(
                 context: context,
                 totalBalance: totalBalance,
                 hideAmount: hideAmounts,
                 isDark: isDark,
                 accountsAsync: accountsAsync,
-                onAddCard: () => onNavigate('/accounts'),
+                onAddAccount: () => widget.onNavigate('/accounts'),
               ),
               const SizedBox(height: 20),
               _buildQuickTransfersAndGoals(
                 context: context,
                 isDark: isDark,
-                onNavigate: onNavigate,
+                onNavigate: widget.onNavigate,
               ),
             ],
           ),
@@ -583,20 +719,20 @@ class DashboardScreen extends ConsumerWidget {
     required double totalBalance,
     required bool hideAmounts,
     required bool isDark,
-    required AsyncValue<List<dynamic>> accountsAsync,
+    required AsyncValue<List<Account>> accountsAsync,
     required AsyncValue<MonthlyFlow> monthlyFlowAsync,
     required AsyncValue<List<dynamic>> recentTxnsAsync,
   }) {
     return Column(
       children: [
-        // 1. My cards Floating Mesh Card
-        _buildMyCardsSection(
+        // 1. My Accounts Section (Swiping Card Carousel vs All Tiles)
+        _buildMyAccountsSection(
           context: context,
           totalBalance: totalBalance,
           hideAmount: hideAmounts,
           isDark: isDark,
           accountsAsync: accountsAsync,
-          onAddCard: () => onNavigate('/accounts'),
+          onAddAccount: () => widget.onNavigate('/accounts'),
         ),
         const SizedBox(height: 22),
 
@@ -622,7 +758,7 @@ class DashboardScreen extends ConsumerWidget {
           recentTxnsAsync: recentTxnsAsync,
           hideAmounts: hideAmounts,
           isDark: isDark,
-          onViewAll: () => onNavigate('/transactions'),
+          onViewAll: () => widget.onNavigate('/transactions'),
         ),
         const SizedBox(height: 22),
 
@@ -630,29 +766,23 @@ class DashboardScreen extends ConsumerWidget {
         _buildQuickTransfersAndGoals(
           context: context,
           isDark: isDark,
-          onNavigate: onNavigate,
+          onNavigate: widget.onNavigate,
         ),
       ],
     );
   }
 
-  // --- "My cards" Stacked Mesh Gradient Card ---
-  Widget _buildMyCardsSection({
+  // --- "My Accounts" Section with Carousel & Tiles Switcher ---
+  Widget _buildMyAccountsSection({
     required BuildContext context,
     required double totalBalance,
     required bool hideAmount,
     required bool isDark,
-    required AsyncValue<List<dynamic>> accountsAsync,
-    required VoidCallback onAddCard,
+    required AsyncValue<List<Account>> accountsAsync,
+    required VoidCallback onAddAccount,
   }) {
-    final primaryAccount = accountsAsync.maybeWhen(
-      data: (accs) => accs.isNotEmpty ? accs.first : null,
-      orElse: () => null,
-    );
-    final cardHolder = primaryAccount != null ? primaryAccount.name : 'Michaela Evans';
-    final cardNumber = primaryAccount?.accountNumberMask != null
-        ? '•••• •••• •••• ${primaryAccount.accountNumberMask}'
-        : '4654 5367 4055 0556';
+    final displayMode = ref.watch(accountsDisplayModeProvider);
+    final accounts = accountsAsync.asData?.value ?? [];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -661,36 +791,150 @@ class DashboardScreen extends ConsumerWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'My cards',
+              'My Accounts',
               style: AppStyles.titleMedium.copyWith(
                 fontWeight: FontWeight.w700,
                 color: isDark ? Colors.white : AppColors.lightTextPrimary,
               ),
             ),
-            InkWell(
-              onTap: onAddCard,
-              borderRadius: BorderRadius.circular(8),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                child: Text(
-                  'add card +',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // View Mode Toggle (Card Carousel vs All Tiles)
+                Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
                     color: isDark
-                        ? AppColors.darkTextSecondary
-                        : AppColors.primary,
+                        ? AppColors.darkSurface
+                        : AppColors.lightBackground,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color:
+                          isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildDisplayModeTab(
+                        icon: Icons.view_carousel_rounded,
+                        tooltip: 'Card Swiping',
+                        isSelected:
+                            displayMode == AccountsDisplayMode.carousel,
+                        isDark: isDark,
+                        onTap: () {
+                          ref
+                              .read(accountsDisplayModeProvider.notifier)
+                              .state = AccountsDisplayMode.carousel;
+                        },
+                      ),
+                      const SizedBox(width: 2),
+                      _buildDisplayModeTab(
+                        icon: Icons.grid_view_rounded,
+                        tooltip: 'All Tiles',
+                        isSelected: displayMode == AccountsDisplayMode.tiles,
+                        isDark: isDark,
+                        onTap: () {
+                          ref
+                              .read(accountsDisplayModeProvider.notifier)
+                              .state = AccountsDisplayMode.tiles;
+                        },
+                      ),
+                    ],
                   ),
                 ),
-              ),
+                const SizedBox(width: 10),
+                InkWell(
+                  onTap: onAddAccount,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    child: Text(
+                      'add account +',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: isDark
+                            ? AppColors.primaryLight
+                            : AppColors.primary,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
         const SizedBox(height: 14),
-        Stack(
+
+        // Display Mode Content
+        if (displayMode == AccountsDisplayMode.carousel)
+          _buildAccountsCarousel(
+            accounts: accounts,
+            totalBalance: totalBalance,
+            hideAmount: hideAmount,
+            isDark: isDark,
+            onAddAccount: onAddAccount,
+          )
+        else
+          _buildAccountsTiles(
+            accounts: accounts,
+            hideAmount: hideAmount,
+            isDark: isDark,
+            onAddAccount: onAddAccount,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildDisplayModeTab({
+    required IconData icon,
+    required String tooltip,
+    required bool isSelected,
+    required bool isDark,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            size: 16,
+            color: isSelected
+                ? Colors.white
+                : (isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.lightTextSecondary),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAccountsCarousel({
+    required List<Account> accounts,
+    required double totalBalance,
+    required bool hideAmount,
+    required bool isDark,
+    required VoidCallback onAddAccount,
+  }) {
+    if (accounts.isEmpty) {
+      return GestureDetector(
+        onTap: onAddAccount,
+        child: Stack(
           clipBehavior: Clip.none,
           children: [
-            // Background peeking card (sunset gradient)
             Positioned(
               right: 0,
               top: 14,
@@ -710,7 +954,6 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            // Foreground primary card (Cyan-to-Purple Mesh Gradient)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(22),
@@ -725,13 +968,12 @@ class DashboardScreen extends ConsumerWidget {
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Balance',
+                            'Total Balance',
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.8),
                               fontSize: 13,
@@ -741,7 +983,7 @@ class DashboardScreen extends ConsumerWidget {
                           const SizedBox(height: 4),
                           Text(
                             CurrencyFormatter.format(
-                              totalBalance > 0 ? totalBalance : 5089.56,
+                              totalBalance > 0 ? totalBalance : 0.0,
                               hideAmount: hideAmount,
                             ),
                             style: const TextStyle(
@@ -761,12 +1003,11 @@ class DashboardScreen extends ConsumerWidget {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Text(
-                          'VISA',
+                          'WALLET',
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 16,
+                            fontSize: 14,
                             fontWeight: FontWeight.w900,
-                            fontStyle: FontStyle.italic,
                             letterSpacing: 1.2,
                           ),
                         ),
@@ -774,12 +1015,12 @@ class DashboardScreen extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: 28),
-                  Text(
-                    cardNumber,
-                    style: const TextStyle(
+                  const Text(
+                    'No Accounts Linked Yet',
+                    style: TextStyle(
                       color: Colors.white,
                       fontSize: 14,
-                      letterSpacing: 2.2,
+                      letterSpacing: 1.2,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -788,24 +1029,16 @@ class DashboardScreen extends ConsumerWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        cardHolder,
+                        'Tap here to add an account',
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.85),
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      Text(
-                        '05/28',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.85),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      Icon(
-                        Icons.contactless_rounded,
-                        color: Colors.white.withValues(alpha: 0.9),
+                      const Icon(
+                        Icons.add_circle_outline_rounded,
+                        color: Colors.white,
                         size: 20,
                       ),
                     ],
@@ -815,32 +1048,458 @@ class DashboardScreen extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        // Pagination dots
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+      );
+    }
+
+    final cardGradients = [
+      AppColors.cardGradientCyanPurple,
+      AppColors.cardGradientSunset,
+      AppColors.cardGradientViolet,
+      const LinearGradient(
+        colors: [Color(0xFF0D9488), Color(0xFF10B981), Color(0xFF34D399)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      const LinearGradient(
+        colors: [Color(0xFF6366F1), Color(0xFF8B5CF6), Color(0xFFEC4899)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+    ];
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 195,
+          child: PageView.builder(
+            controller: _accountsPageController,
+            itemCount: accounts.length,
+            onPageChanged: (idx) {
+              setState(() {
+                _accountsPageIndex = idx;
+              });
+            },
+            itemBuilder: (context, index) {
+              final account = accounts[index];
+              final gradient = cardGradients[index % cardGradients.length];
+              final mask = account.accountNumberMask != null
+                  ? '•••• •••• •••• ${account.accountNumberMask}'
+                  : '•••• •••• •••• ${index.toString().padLeft(4, '0')}';
+              final badgeLabel =
+                  account.type.toUpperCase().replaceAll('_', ' ');
+
+              return GestureDetector(
+                onTap: () => widget.onNavigate('/accounts'),
+                child: Container(
+                  margin: EdgeInsets.only(
+                    right: accounts.length > 1 ? 12 : 0,
+                    left: index == 0 ? 0 : 4,
+                  ),
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: gradient,
+                    borderRadius: AppStyles.roundedL,
+                    boxShadow: AppStyles.heroGlowShadow,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                account.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.85),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                CurrencyFormatter.format(
+                                  account.balance,
+                                  hideAmount: hideAmount,
+                                ),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 9, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.22),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              badgeLabel,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        mask,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          letterSpacing: 2.0,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                _getAccountTypeIcon(account.type),
+                                color: Colors.white.withValues(alpha: 0.9),
+                                size: 16,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                _getAccountTypeDisplayName(account.type),
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.85),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Icon(
+                            Icons.contactless_rounded,
+                            color: Colors.white.withValues(alpha: 0.9),
+                            size: 18,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        if (accounts.length > 1) ...[
+          const SizedBox(height: 12),
+          // Swiping Dots Indicator
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(accounts.length, (i) {
+              final isCurrent = i == _accountsPageIndex;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: isCurrent ? 16 : 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: isCurrent
+                      ? AppColors.primary
+                      : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              );
+            }),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAccountsTiles({
+    required List<Account> accounts,
+    required bool hideAmount,
+    required bool isDark,
+    required VoidCallback onAddAccount,
+  }) {
+    if (accounts.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkCard : AppColors.lightCard,
+          borderRadius: AppStyles.roundedL,
+          border: Border.all(
+            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+          ),
+        ),
+        child: Column(
           children: [
-            Container(
-              width: 16,
-              height: 6,
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(3),
+            Icon(
+              Icons.account_balance_wallet_outlined,
+              size: 40,
+              color: isDark
+                  ? AppColors.darkTextSecondary
+                  : AppColors.lightTextSecondary,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'No Accounts Linked',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: isDark ? Colors.white : AppColors.lightTextPrimary,
               ),
             ),
-            const SizedBox(width: 6),
-            Container(
-              width: 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                shape: BoxShape.circle,
+            const SizedBox(height: 4),
+            Text(
+              'Add your bank accounts, cards, or wallets to see them here.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.lightTextSecondary,
               ),
+            ),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: onAddAccount,
+              icon: const Icon(Icons.add_rounded, size: 16),
+              label: const Text('Add Account'),
             ),
           ],
         ),
-      ],
+      );
+    }
+
+    // Responsive Grid of Account Tiles (2 columns)
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 1.35,
+      ),
+      itemCount: accounts.length + 1, // +1 for "+ Add Account" tile
+      itemBuilder: (context, index) {
+        // Last item is the "+ Add Account" tile
+        if (index == accounts.length) {
+          return InkWell(
+            onTap: onAddAccount,
+            borderRadius: AppStyles.roundedL,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? AppColors.darkSurface.withValues(alpha: 0.5)
+                    : AppColors.lightBackground,
+                borderRadius: AppStyles.roundedL,
+                border: Border.all(
+                  color:
+                      isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                  width: 1.2,
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.add_rounded,
+                      color: AppColors.primary,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Add Account',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isDark
+                          ? AppColors.primaryLight
+                          : AppColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        final account = accounts[index];
+        final accentColor = _parseAccountColor(account.colorHex);
+        final isCreditCard = account.type == 'credit_card';
+
+        return InkWell(
+          onTap: () => widget.onNavigate('/accounts'),
+          borderRadius: AppStyles.roundedL,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkCard : AppColors.lightCard,
+              borderRadius: AppStyles.roundedL,
+              border: Border.all(
+                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                width: 1,
+              ),
+              boxShadow: AppStyles.softShadow,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Top row: Icon with accent background & type tag
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: accentColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        _getAccountTypeIcon(account.type),
+                        color: accentColor,
+                        size: 17,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? AppColors.darkSurface
+                            : AppColors.lightBackground,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        _getAccountTypeDisplayName(account.type),
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.lightTextSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                // Middle: Account Name & Mask
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      account.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                      ),
+                    ),
+                    if (account.accountNumberMask != null)
+                      Text(
+                        '•••• ${account.accountNumberMask}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.lightTextSecondary,
+                        ),
+                      ),
+                  ],
+                ),
+                // Bottom: Balance
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    CurrencyFormatter.format(
+                      account.balance,
+                      hideAmount: hideAmount,
+                    ),
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.3,
+                      color: isCreditCard && account.balance < 0
+                          ? AppColors.expense
+                          : (isDark ? Colors.white : AppColors.lightTextPrimary),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
+  }
+
+  IconData _getAccountTypeIcon(String type) {
+    switch (type.toLowerCase()) {
+      case 'credit_card':
+        return Icons.credit_card_rounded;
+      case 'savings':
+        return Icons.account_balance_rounded;
+      case 'current':
+        return Icons.business_center_rounded;
+      case 'cash':
+        return Icons.payments_rounded;
+      case 'wallet':
+        return Icons.wallet_rounded;
+      default:
+        return Icons.account_balance_wallet_rounded;
+    }
+  }
+
+  String _getAccountTypeDisplayName(String type) {
+    switch (type.toLowerCase()) {
+      case 'credit_card':
+        return 'Credit';
+      case 'savings':
+        return 'Savings';
+      case 'current':
+        return 'Current';
+      case 'cash':
+        return 'Cash';
+      case 'wallet':
+        return 'Wallet';
+      default:
+        return 'Account';
+    }
+  }
+
+  Color _parseAccountColor(String hex) {
+    try {
+      final clean = hex.replaceAll('#', '').replaceAll('0x', '');
+      return Color(int.parse(clean, radix: 16));
+    } catch (_) {
+      return AppColors.primary;
+    }
   }
 
   // --- Revenue Analysis Dual Spline Wave Chart ---

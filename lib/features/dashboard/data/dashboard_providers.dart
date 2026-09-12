@@ -1,7 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import '../../accounts/data/account_repository.dart';
 import '../../transactions/data/transaction_repository.dart';
 import '../../inbox/data/queue_repository.dart';
+
+/// Display mode for My Accounts section (swiping card carousel vs tiles grid)
+enum AccountsDisplayMode { carousel, tiles }
+
+final accountsDisplayModeProvider =
+    StateProvider<AccountsDisplayMode>((ref) => AccountsDisplayMode.carousel);
 
 /// Computed Total Balance across all active accounts
 final totalBalanceProvider = Provider<double>((ref) {
