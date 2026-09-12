@@ -3,13 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/database/database_provider.dart';
+import '../../rules/data/rules_repository.dart';
 import '../../transactions/data/transaction_repository.dart';
 
 class QueueRepository {
   final AppDatabase _db;
   final TransactionRepository _txnRepo;
+  final RulesRepository? _rulesRepo;
 
-  QueueRepository(this._db, this._txnRepo);
+  QueueRepository(this._db, this._txnRepo, [this._rulesRepo]);
 
   /// Watch all unreviewed transactions in the staging queue
   Stream<List<SmsReviewQueueData>> watchPendingItems() {
@@ -34,6 +36,17 @@ class QueueRepository {
     double? confidenceScore,
     String parserUsed = 'regex',
   }) async {
+    String? finalCatId = suggestedCategoryId;
+    if (finalCatId == null && _rulesRepo != null) {
+      final match = await _rulesRepo.evaluateRules(
+        text: suggestedMerchant ?? rawBody,
+        amount: suggestedAmount,
+      );
+      if (match?.categoryId != null) {
+        finalCatId = match!.categoryId;
+      }
+    }
+
     final id = const Uuid().v4();
     await _db.into(_db.smsReviewQueue).insert(
           SmsReviewQueueCompanion.insert(
@@ -44,7 +57,7 @@ class QueueRepository {
             suggestedMerchant: Value(suggestedMerchant),
             suggestedAmount: Value(suggestedAmount),
             suggestedAccountId: Value(suggestedAccountId),
-            suggestedCategoryId: Value(suggestedCategoryId),
+            suggestedCategoryId: Value(finalCatId),
             confidenceScore: Value(confidenceScore),
             parserUsed: Value(parserUsed),
             status: const Value('pending'),
@@ -106,6 +119,7 @@ final queueRepositoryProvider = Provider<QueueRepository>((ref) {
   return QueueRepository(
     ref.watch(databaseProvider),
     ref.watch(transactionRepositoryProvider),
+    ref.watch(rulesRepositoryProvider),
   );
 });
 

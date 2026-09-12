@@ -128,6 +128,13 @@ class AppSideDrawer extends ConsumerWidget {
                     route: '/budgets',
                     isSelected: currentRoute == '/budgets',
                   ),
+                  _buildDrawerItem(
+                    context: context,
+                    icon: Icons.bolt_rounded,
+                    label: 'Smart Rules',
+                    route: '/rules',
+                    isSelected: currentRoute == '/rules',
+                  ),
 
                   _buildDivider(isDark),
 
