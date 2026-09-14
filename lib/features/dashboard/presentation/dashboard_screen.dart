@@ -7,7 +7,10 @@ import '../../../core/theme/theme_provider.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/database/app_database.dart';
 import '../../accounts/data/account_repository.dart';
+import '../../auth/presentation/lock_screen.dart';
+import '../../budgets/data/budget_repository.dart';
 import '../../navigation/presentation/side_drawer.dart';
+import '../../reports/data/reports_repository.dart';
 import '../../transactions/data/transaction_repository.dart';
 import '../data/dashboard_providers.dart';
 
@@ -53,6 +56,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     _kpiPageController = PageController();
     _accountsPageController = PageController(viewportFraction: 0.88);
     _accountsPageController.addListener(_onAccountsPageScroll);
+    _loadProfileName();
+  }
+
+  Future<void> _loadProfileName() async {
+    final storage = ref.read(secureStorageProvider);
+    final name = await storage.read(key: 'user_profile_name');
+    if (name != null && name.isNotEmpty && mounted) {
+      ref.read(userProfileNameProvider.notifier).state = name;
+    }
   }
 
   void _onAccountsPageScroll() {
@@ -289,6 +301,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   // --- Header Greeting ---
   Widget _buildUserGreeting(bool isDark) {
+    final customName = ref.watch(userProfileNameProvider);
+    final hour = DateTime.now().hour;
+    String greeting;
+    if (hour < 12) {
+      greeting = 'Good morning';
+    } else if (hour < 17) {
+      greeting = 'Good afternoon';
+    } else {
+      greeting = 'Good evening';
+    }
+    final titleText = customName.trim().isNotEmpty
+        ? '$greeting, $customName! 👋'
+        : '$greeting! 👋';
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -296,7 +322,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Hello, Michaela! 👋',
+              titleText,
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -351,6 +377,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       isDark: isDark,
       hideAmount: hideAmounts,
       isCompact: !isWide,
+      onTap: () => widget.onNavigate('/analytics'),
     );
 
     final expenseCard = _buildSparklineCard(
@@ -370,6 +397,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       isDark: isDark,
       hideAmount: hideAmounts,
       isCompact: !isWide,
+      onTap: () => widget.onNavigate('/analytics'),
     );
 
     final investmentCard = _buildSparklineCard(
@@ -389,6 +417,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       isDark: isDark,
       hideAmount: hideAmounts,
       isCompact: !isWide,
+      onTap: () => widget.onNavigate('/investments'),
     );
 
     final netSavingsCard = _buildSparklineCard(
@@ -408,6 +437,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       isDark: isDark,
       hideAmount: hideAmounts,
       isCompact: !isWide,
+      onTap: () => widget.onNavigate('/analytics'),
     );
 
     if (isWide) {
@@ -500,8 +530,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     required bool isDark,
     required bool hideAmount,
     bool isCompact = false,
+    VoidCallback? onTap,
   }) {
-    return Container(
+    return Material(
+      color: Colors.transparent,
+      borderRadius: AppStyles.roundedL,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppStyles.roundedL,
+        child: Container(
       padding: EdgeInsets.fromLTRB(
         isCompact ? 12 : 16,
         isCompact ? 12 : 16,
@@ -658,7 +695,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ),
         ],
       ),
-    );
+    ),
+  ),
+);
   }
 
   // --- Responsive Desktop Layout ---
@@ -1705,11 +1744,27 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Revenue analysis',
-                style: AppStyles.titleMedium.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? Colors.white : AppColors.lightTextPrimary,
+              InkWell(
+                onTap: () => widget.onNavigate('/analytics'),
+                borderRadius: BorderRadius.circular(8),
+                child: Row(
+                  children: [
+                    Text(
+                      'Revenue analysis',
+                      style: AppStyles.titleMedium.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 13,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.lightTextSecondary,
+                    ),
+                  ],
                 ),
               ),
               Row(
@@ -1915,24 +1970,45 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     required bool hideAmount,
     required bool isDark,
   }) {
-    final displayAmount = totalExpense > 0 ? totalExpense : 1525.61;
+    final reportAsync = ref.watch(financialReportStreamProvider);
+    final reportCategories = reportAsync.asData?.value.categoryBreakdown ?? [];
 
-    final categories = [
-      _DonutCategory(
-          name: 'Supermarkets',
-          amount: 186.65,
-          color: const Color(0xFF00D2FF)),
-      _DonutCategory(
-          name: 'Transfers', amount: 207.82, color: const Color(0xFF38BDF8)),
-      _DonutCategory(
-          name: 'Restaurants', amount: 197.25, color: const Color(0xFF8B5CF6)),
-      _DonutCategory(
-          name: 'Cash', amount: 340.00, color: const Color(0xFFEC4899)),
-      _DonutCategory(
-          name: 'Study', amount: 500.85, color: const Color(0xFFF43F5E)),
-      _DonutCategory(
-          name: 'Other', amount: 93.04, color: const Color(0xFFFB923C)),
-    ];
+    final double displayAmount = totalExpense > 0
+        ? totalExpense
+        : (reportAsync.asData?.value.totalExpense ?? 1525.61);
+
+    final List<_DonutCategory> categories;
+    if (reportCategories.isNotEmpty) {
+      categories = reportCategories.take(5).map((c) {
+        Color color = AppColors.primary;
+        try {
+          final clean = c.colorHex.replaceAll('#', '').replaceAll('0x', '');
+          color = Color(int.parse(clean, radix: 16));
+        } catch (_) {}
+        return _DonutCategory(
+          name: c.categoryName,
+          amount: c.totalAmount,
+          color: color,
+        );
+      }).toList();
+    } else {
+      categories = [
+        _DonutCategory(
+            name: 'Supermarkets',
+            amount: 186.65,
+            color: const Color(0xFF00D2FF)),
+        _DonutCategory(
+            name: 'Transfers', amount: 207.82, color: const Color(0xFF38BDF8)),
+        _DonutCategory(
+            name: 'Restaurants', amount: 197.25, color: const Color(0xFF8B5CF6)),
+        _DonutCategory(
+            name: 'Cash', amount: 340.00, color: const Color(0xFFEC4899)),
+        _DonutCategory(
+            name: 'Study', amount: 500.85, color: const Color(0xFFF43F5E)),
+        _DonutCategory(
+            name: 'Other', amount: 93.04, color: const Color(0xFFFB923C)),
+      ];
+    }
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -1950,11 +2026,25 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Expenses',
-                style: AppStyles.titleMedium.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? Colors.white : AppColors.lightTextPrimary,
+              InkWell(
+                onTap: () => widget.onNavigate('/analytics'),
+                borderRadius: BorderRadius.circular(8),
+                child: Row(
+                  children: [
+                    Text(
+                      'Expenses',
+                      style: AppStyles.titleMedium.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 13,
+                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                    ),
+                  ],
                 ),
               ),
               Container(
@@ -2422,6 +2512,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 accountMask: '•••• 1676',
                 avatarColor: const Color(0xFF6366F1),
                 isDark: isDark,
+                onTap: widget.onOpenAddTransaction,
               ),
               _buildContactTile(
                 initial: 'J',
@@ -2429,6 +2520,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 accountMask: '•••• 2675',
                 avatarColor: const Color(0xFF00D2FF),
                 isDark: isDark,
+                onTap: widget.onOpenAddTransaction,
               ),
               _buildContactTile(
                 initial: 'A',
@@ -2436,6 +2528,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 accountMask: '•••• 0987',
                 avatarColor: const Color(0xFFEC4899),
                 isDark: isDark,
+                onTap: widget.onOpenAddTransaction,
               ),
             ],
           ),
@@ -2458,15 +2551,31 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Goals',
-                    style: AppStyles.titleMedium.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                  InkWell(
+                    onTap: () => onNavigate('/goals'),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Row(
+                      children: [
+                        Text(
+                          'Goals',
+                          style: AppStyles.titleMedium.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 13,
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.lightTextSecondary,
+                        ),
+                      ],
                     ),
                   ),
                   InkWell(
-                    onTap: () => onNavigate('/budgets'),
+                    onTap: () => onNavigate('/goals'),
                     child: Text(
                       'add goal +',
                       style: TextStyle(
@@ -2481,34 +2590,74 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ],
               ),
               const SizedBox(height: 14),
-              _buildGoalProgress(
-                icon: Icons.flight_takeoff_rounded,
-                title: 'Trip',
-                saved: 10576,
-                target: 20000,
-                gradient: const LinearGradient(
-                    colors: [Color(0xFF38BDF8), Color(0xFF818CF8)]),
-                isDark: isDark,
-              ),
-              const SizedBox(height: 10),
-              _buildGoalProgress(
-                icon: Icons.home_rounded,
-                title: 'House',
-                saved: 54637,
-                target: 180000,
-                gradient: const LinearGradient(
-                    colors: [Color(0xFF8B5CF6), Color(0xFFC084FC)]),
-                isDark: isDark,
-              ),
-              const SizedBox(height: 10),
-              _buildGoalProgress(
-                icon: Icons.camera_alt_rounded,
-                title: 'Camera',
-                saved: 983.75,
-                target: 4650,
-                gradient: const LinearGradient(
-                    colors: [Color(0xFF00D2FF), Color(0xFF38BDF8)]),
-                isDark: isDark,
+              ref.watch(goalsStreamProvider).when(
+                data: (goals) {
+                  if (goals.isEmpty) {
+                    return Column(
+                      children: [
+                        _buildGoalProgress(
+                          icon: Icons.flight_takeoff_rounded,
+                          title: 'Trip',
+                          saved: 10576,
+                          target: 20000,
+                          gradient: const LinearGradient(
+                              colors: [Color(0xFF38BDF8), Color(0xFF818CF8)]),
+                          isDark: isDark,
+                        ),
+                        const SizedBox(height: 10),
+                        _buildGoalProgress(
+                          icon: Icons.home_rounded,
+                          title: 'House',
+                          saved: 54637,
+                          target: 180000,
+                          gradient: const LinearGradient(
+                              colors: [Color(0xFF8B5CF6), Color(0xFFC084FC)]),
+                          isDark: isDark,
+                        ),
+                        const SizedBox(height: 10),
+                        _buildGoalProgress(
+                          icon: Icons.camera_alt_rounded,
+                          title: 'Camera',
+                          saved: 983.75,
+                          target: 4650,
+                          gradient: const LinearGradient(
+                              colors: [Color(0xFF00D2FF), Color(0xFF38BDF8)]),
+                          isDark: isDark,
+                        ),
+                      ],
+                    );
+                  }
+
+                  const gradients = [
+                    LinearGradient(colors: [Color(0xFF38BDF8), Color(0xFF818CF8)]),
+                    LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFFC084FC)]),
+                    LinearGradient(colors: [Color(0xFF00D2FF), Color(0xFF38BDF8)]),
+                    LinearGradient(colors: [Color(0xFF10B981), Color(0xFF34D399)]),
+                  ];
+
+                  return Column(
+                    children: goals.take(4).toList().asMap().entries.map((entry) {
+                      final i = entry.key;
+                      final g = entry.value;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _buildGoalProgress(
+                          icon: Icons.savings_rounded,
+                          title: g.goal.title,
+                          saved: g.goal.currentAmount,
+                          target: g.goal.targetAmount,
+                          gradient: gradients[i % gradients.length],
+                          isDark: isDark,
+                        ),
+                      );
+                    }).toList(),
+                  );
+                },
+                loading: () => const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                error: (_, _) => const SizedBox(),
               ),
             ],
           ),
@@ -2523,10 +2672,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     required String accountMask,
     required Color avatarColor,
     required bool isDark,
+    VoidCallback? onTap,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+        child: Row(
         children: [
           CircleAvatar(
             radius: 15,
@@ -2574,7 +2727,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildGoalProgress({

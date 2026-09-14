@@ -9,6 +9,9 @@ final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
 /// Global Privacy Shield: Masks all currency amounts when true
 final hideAmountsProvider = StateProvider<bool>((ref) => false);
 
+/// Global user profile display name provider
+final userProfileNameProvider = StateProvider<String>((ref) => '');
+
 /// Application ThemeData definition for Light and Dark modes
 class AppTheme {
   AppTheme._();

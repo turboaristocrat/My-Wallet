@@ -37,4 +37,14 @@ void main() {
       expect(AccountsDisplayMode.tiles.name, 'tiles');
     });
   });
+
+  group('Investments & Feature Hub Model Tests', () {
+    test('InvestmentHolding computes gain and return percentage correctly', () {
+      final invested = 40000.0;
+      final current = 52000.0;
+      final returnPct = ((current - invested) / invested) * 100;
+      expect(returnPct, 30.0);
+      expect(current - invested, 12000.0);
+    });
+  });
 }

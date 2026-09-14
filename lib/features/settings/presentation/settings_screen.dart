@@ -23,10 +23,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _biometricsEnabled = true;
 
   @override
+  void initState() {
+    super.initState();
+    _loadProfileName();
+  }
+
+  Future<void> _loadProfileName() async {
+    final storage = ref.read(secureStorageProvider);
+    final name = await storage.read(key: 'user_profile_name');
+    if (name != null && name.isNotEmpty && mounted) {
+      ref.read(userProfileNameProvider.notifier).state = name;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final themeMode = ref.watch(themeModeProvider);
     final hideAmounts = ref.watch(hideAmountsProvider);
+    final profileName = ref.watch(userProfileNameProvider);
 
     return Scaffold(
       key: _scaffoldKey,
@@ -96,6 +111,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             SliverList(
               delegate: SliverChildListDelegate([
                 const SizedBox(height: 8),
+
+                // Section 0: Profile & Identity
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildSectionTitle(isDark, 'Profile & Identity', Icons.person_rounded),
+                ),
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildSettingsGroup(
+                    isDark: isDark,
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.badge_rounded, color: AppColors.primary),
+                        title: const Text('Display Name',
+                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                        subtitle: Text(
+                          profileName.isNotEmpty
+                              ? profileName
+                              : 'Set your name for personalized greetings',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        trailing: const Icon(Icons.edit_rounded, size: 18),
+                        onTap: () => _showEditProfileDialog(context),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
 
                 // Section 1: Security & Privacy
                 Padding(
@@ -503,6 +547,65 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               }
             },
             child: const Text('Save PIN'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditProfileDialog(BuildContext context) {
+    final nameController = TextEditingController(
+      text: ref.read(userProfileNameProvider),
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Edit Display Name'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Enter your name for dashboard greetings and reports:'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: nameController,
+              textCapitalization: TextCapitalization.words,
+              decoration: InputDecoration(
+                hintText: 'e.g. Michaela, Rahul, Alex',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              final newName = nameController.text.trim();
+              final storage = ref.read(secureStorageProvider);
+              await storage.write(key: 'user_profile_name', value: newName);
+              ref.read(userProfileNameProvider.notifier).state = newName;
+
+              if (context.mounted) {
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Display name updated!'),
+                    backgroundColor: AppColors.incomeGreen,
+                  ),
+                );
+              }
+            },
+            child: const Text('Save Name'),
           ),
         ],
       ),

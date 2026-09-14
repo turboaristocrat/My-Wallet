@@ -15,6 +15,8 @@ import 'features/rules/presentation/rules_screen.dart';
 import 'features/copilot/presentation/copilot_screen.dart';
 import 'features/settings/presentation/settings_screen.dart';
 import 'features/split/presentation/split_expenses_screen.dart';
+import 'features/extras/presentation/feature_hub_screen.dart';
+import 'features/investments/presentation/investments_screen.dart';
 import 'features/transactions/presentation/add_transaction_sheet.dart';
 import 'features/transactions/presentation/transactions_screen.dart';
 
@@ -105,6 +107,16 @@ class _MyWalletAppState extends ConsumerState<MyWalletApp> {
               return CopilotScreen(onNavigate: _navigateTo);
             case '/split_expenses':
               return SplitExpensesScreen(onNavigate: _navigateTo);
+            case '/investments':
+              return InvestmentsScreen(onNavigate: _navigateTo);
+            case '/gift_cards':
+            case '/shopping_lists':
+            case '/warranties':
+            case '/family_mode':
+              return FeatureHubScreen(
+                route: _currentRoute,
+                onNavigate: _navigateTo,
+              );
             case '/settings':
               return SettingsScreen(onNavigate: _navigateTo);
             case '/backup':
