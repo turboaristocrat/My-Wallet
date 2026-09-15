@@ -5,6 +5,7 @@ import '../../../core/theme/theme_provider.dart';
 import '../../auth/presentation/lock_screen.dart';
 import '../../navigation/presentation/side_drawer.dart';
 import '../../categories/presentation/manage_categories_dialog.dart';
+import '../../sms/data/notification_listener_service.dart';
 import '../../tags/presentation/manage_tags_dialog.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -23,11 +24,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   String _selectedCurrency = 'INR (₹)';
   bool _biometricsEnabled = true;
+  bool _notificationListenerEnabled = false;
 
   @override
   void initState() {
     super.initState();
     _loadProfileName();
+    _checkNotificationListener();
+  }
+
+  Future<void> _checkNotificationListener() async {
+    final service = ref.read(notificationListenerServiceProvider);
+    final granted = await service.isPermissionGranted();
+    if (mounted) {
+      setState(() => _notificationListenerEnabled = granted);
+      if (granted) {
+        service.startListening();
+      }
+    }
   }
 
   Future<void> _loadProfileName() async {
@@ -341,7 +355,65 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // Section 5: Data Management & Portability
+                // Section 5: Auto-Capture & Push Notifications (PennyWise Feature)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildSectionTitle(isDark, 'Auto-Capture & Push Alerts', Icons.notifications_active_rounded),
+                ),
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildSettingsGroup(
+                    isDark: isDark,
+                    children: [
+                      SwitchListTile(
+                        secondary: const Icon(Icons.mark_chat_unread_rounded, color: AppColors.primary),
+                        title: const Text('Capture Bank & UPI Notifications',
+                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                        subtitle: const Text('Auto-detect transactions from GPay, PhonePe, Paytm, CRED & bank apps',
+                            style: TextStyle(fontSize: 12)),
+                        value: _notificationListenerEnabled,
+                        activeTrackColor: AppColors.primary,
+                        onChanged: (val) async {
+                          final service = ref.read(notificationListenerServiceProvider);
+                          if (val) {
+                            final granted = await service.isPermissionGranted();
+                            if (!granted) {
+                              await service.openSettings();
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Please enable "My Wallet" in Android Notification Access settings'),
+                                    backgroundColor: AppColors.primary,
+                                  ),
+                                );
+                              }
+                            } else {
+                              service.startListening();
+                              setState(() => _notificationListenerEnabled = true);
+                            }
+                          } else {
+                            service.stopListening();
+                            setState(() => _notificationListenerEnabled = false);
+                          }
+                        },
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: const Icon(Icons.bolt_rounded, color: AppColors.warning),
+                        title: const Text('Automation Rules',
+                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                        subtitle: const Text('Auto-categorize, add tags, or drop blocked transactions',
+                            style: TextStyle(fontSize: 12)),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: () => widget.onNavigate('/rules'),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Section 6: Data Management & Portability
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _buildSectionTitle(isDark, 'Data Management', Icons.folder_zip_rounded),

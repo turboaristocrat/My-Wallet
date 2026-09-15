@@ -10,6 +10,8 @@ class SmsParsingResult {
   final double? balanceAfter;
   final String? referenceNumber;
   final DateTime? dateTime;
+  // 'upi', 'card', 'cash', 'net_banking'
+  final String paymentType;
   final double confidence; // 0.0 to 1.0
   final String? rawBody;
 
@@ -23,6 +25,7 @@ class SmsParsingResult {
     this.balanceAfter,
     this.referenceNumber,
     this.dateTime,
+    this.paymentType = 'upi',
     this.confidence = 0.0,
     this.rawBody,
   });
@@ -38,6 +41,6 @@ class SmsParsingResult {
 
   @override
   String toString() {
-    return 'SmsParsingResult(isTxn: $isTransaction, type: $transactionType, amount: $amount, merchant: $merchantName, acc: $accountNumberMask, bank: $bankName, conf: $confidence)';
+    return 'SmsParsingResult(isTxn: $isTransaction, type: $transactionType, amount: $amount, merchant: $merchantName, acc: $accountNumberMask, bank: $bankName, payment: $paymentType, conf: $confidence)';
   }
 }

@@ -37,13 +37,19 @@ class QueueRepository {
     String parserUsed = 'regex',
   }) async {
     String? finalCatId = suggestedCategoryId;
-    if (finalCatId == null && _rulesRepo != null) {
+    if (_rulesRepo != null) {
       final match = await _rulesRepo.evaluateRules(
-        text: suggestedMerchant ?? rawBody,
+        text: rawBody,
         amount: suggestedAmount,
+        merchant: suggestedMerchant,
       );
-      if (match?.categoryId != null) {
-        finalCatId = match!.categoryId;
+      if (match != null) {
+        if (match.isBlocked) {
+          return ''; // Dropped by BLOCK automation rule
+        }
+        if (finalCatId == null && match.categoryId != null) {
+          finalCatId = match.categoryId;
+        }
       }
     }
 
