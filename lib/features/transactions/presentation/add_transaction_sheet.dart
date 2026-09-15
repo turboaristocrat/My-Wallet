@@ -10,7 +10,12 @@ import '../data/transaction_repository.dart';
 
 class AddTransactionSheet extends ConsumerStatefulWidget {
   final Transaction? initialTransaction;
-  const AddTransactionSheet({super.key, this.initialTransaction});
+  final String? preselectedAccountId;
+  const AddTransactionSheet({
+    super.key,
+    this.initialTransaction,
+    this.preselectedAccountId,
+  });
 
   @override
   ConsumerState<AddTransactionSheet> createState() =>
@@ -50,6 +55,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       _paymentType = t.paymentType;
       _status = t.status;
       _isDetailsExpanded = true;
+    } else if (widget.preselectedAccountId != null) {
+      _selectedAccountId = widget.preselectedAccountId;
     }
   }
 

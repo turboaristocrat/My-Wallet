@@ -431,7 +431,9 @@ class AppSideDrawer extends ConsumerWidget {
                     )
                   : null,
           onTap: () {
-            Navigator.of(context).pop(); // Close drawer
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop(); // Close drawer
+            }
             if (onNavigate != null) {
               onNavigate!(route);
             }

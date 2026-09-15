@@ -232,3 +232,10 @@ final recentTransactionsStreamProvider =
 final categoriesStreamProvider = StreamProvider<List<Category>>((ref) {
   return ref.watch(transactionRepositoryProvider).watchCategories();
 });
+
+final accountTransactionsStreamProvider =
+    StreamProvider.family<List<Transaction>, String>((ref, accountId) {
+  return ref
+      .watch(transactionRepositoryProvider)
+      .watchFilteredTransactions(accountId: accountId);
+});

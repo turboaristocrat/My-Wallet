@@ -12,6 +12,8 @@ import '../../budgets/data/budget_repository.dart';
 import '../../navigation/presentation/side_drawer.dart';
 import '../../reports/data/reports_repository.dart';
 import '../../transactions/data/transaction_repository.dart';
+import '../../transactions/presentation/add_transaction_sheet.dart';
+import '../data/dashboard_config.dart';
 import '../data/dashboard_providers.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -28,11 +30,15 @@ class DashboardScreen extends ConsumerStatefulWidget {
   ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+class _DashboardScreenState extends ConsumerState<DashboardScreen>
+    with SingleTickerProviderStateMixin {
   late final PageController _kpiPageController;
-  late final PageController _accountsPageController;
+  late final AnimationController _cardAnimController;
+  Animation<double>? _cardSlideAnimation;
   int _kpiPageIndex = 0;
   int _accountsPageIndex = 0;
+  double _dragDx = 0.0;
+  bool _isCardAnimating = false;
 
   static const List<LinearGradient> _accountCardGradients = [
     AppColors.cardGradientCyanPurple,
@@ -54,8 +60,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   void initState() {
     super.initState();
     _kpiPageController = PageController();
-    _accountsPageController = PageController();
-    _accountsPageController.addListener(_onAccountsPageScroll);
+    _cardAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
     _loadProfileName();
   }
 
@@ -67,17 +75,104 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
   }
 
-  void _onAccountsPageScroll() {
-    if (mounted) {
-      setState(() {});
+  void _onCardDragUpdate(DragUpdateDetails details) {
+    if (_isCardAnimating) return;
+    setState(() {
+      _dragDx += details.primaryDelta ?? 0.0;
+    });
+  }
+
+  void _onCardDragEnd(DragEndDetails details, double cardWidth, int totalCount) {
+    if (_isCardAnimating || totalCount <= 1) return;
+    final velocity = details.primaryVelocity ?? 0.0;
+    final progress = _dragDx / cardWidth;
+
+    if (progress < -0.18 || velocity < -240) {
+      _animateCard(
+        from: _dragDx,
+        to: -cardWidth,
+        onComplete: () {
+          setState(() {
+            _accountsPageIndex = (_accountsPageIndex + 1) % totalCount;
+            _dragDx = 0.0;
+          });
+        },
+      );
+    } else if (progress > 0.18 || velocity > 240) {
+      _animateCard(
+        from: _dragDx,
+        to: cardWidth,
+        onComplete: () {
+          setState(() {
+            _accountsPageIndex =
+                (_accountsPageIndex - 1 + totalCount) % totalCount;
+            _dragDx = 0.0;
+          });
+        },
+      );
+    } else {
+      _animateCard(
+        from: _dragDx,
+        to: 0.0,
+        onComplete: () {
+          setState(() {
+            _dragDx = 0.0;
+          });
+        },
+      );
     }
+  }
+
+  void _animateCard({
+    required double from,
+    required double to,
+    required VoidCallback onComplete,
+  }) {
+    _isCardAnimating = true;
+    _cardSlideAnimation = Tween<double>(begin: from, end: to).animate(
+      CurvedAnimation(
+        parent: _cardAnimController,
+        curve: Curves.easeOutCubic,
+      ),
+    )..addListener(() {
+        setState(() {
+          _dragDx = _cardSlideAnimation!.value;
+        });
+      });
+
+    _cardAnimController.forward(from: 0.0).then((_) {
+      _isCardAnimating = false;
+      onComplete();
+    });
+  }
+
+  void _advanceToNextCard(double cardWidth, int totalCount) {
+    if (_isCardAnimating || totalCount <= 1) return;
+    _animateCard(
+      from: 0.0,
+      to: -cardWidth,
+      onComplete: () {
+        setState(() {
+          _accountsPageIndex = (_accountsPageIndex + 1) % totalCount;
+          _dragDx = 0.0;
+        });
+      },
+    );
+  }
+
+  void _openAddTransaction() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => const AddTransactionSheet(),
+    );
   }
 
   @override
   void dispose() {
-    _accountsPageController.removeListener(_onAccountsPageScroll);
+    _cardAnimController.dispose();
     _kpiPageController.dispose();
-    _accountsPageController.dispose();
     super.dispose();
   }
 
@@ -90,6 +185,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final recentTxnsAsync = ref.watch(recentTransactionsStreamProvider);
     final hideAmounts = ref.watch(hideAmountsProvider);
     final pendingCount = ref.watch(pendingQueueCountProvider);
+    final dashboardConfig = ref.watch(dashboardConfigProvider);
 
     return Scaffold(
       backgroundColor:
@@ -142,6 +238,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             onPressed: () {
               ref.read(hideAmountsProvider.notifier).state = !hideAmounts;
             },
+          ),
+          IconButton(
+            tooltip: 'Customize Dashboard',
+            icon: Icon(
+              Icons.tune_rounded,
+              size: 20,
+              color: isDark
+                  ? AppColors.darkTextSecondary
+                  : AppColors.lightTextSecondary,
+            ),
+            onPressed: () => _showConfigureDashboardSheet(context),
           ),
           Stack(
             alignment: Alignment.center,
@@ -233,23 +340,25 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   const SizedBox(height: 20),
 
                   // 1. Top 3 KPI Sparkline Stat Cards
-                  monthlyFlowAsync.when(
-                    data: (flow) => _buildTopKpiCards(
-                      context: context,
-                      flow: flow,
-                      isDark: isDark,
-                      hideAmounts: hideAmounts,
-                      isWide: isWide,
-                    ),
-                    loading: () => const Center(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: 24),
-                        child: CircularProgressIndicator(),
+                  if (dashboardConfig.showKpiCards) ...[
+                    monthlyFlowAsync.when(
+                      data: (flow) => _buildTopKpiCards(
+                        context: context,
+                        flow: flow,
+                        isDark: isDark,
+                        hideAmounts: hideAmounts,
+                        isWide: isWide,
                       ),
+                      loading: () => const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24),
+                          child: CircularProgressIndicator(),
+                        ),
+                      ),
+                      error: (_, _) => const SizedBox(),
                     ),
-                    error: (_, _) => const SizedBox(),
-                  ),
-                  const SizedBox(height: 22),
+                    const SizedBox(height: 22),
+                  ],
 
                   // Responsive Body Layout
                   if (isWide)
@@ -261,6 +370,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       accountsAsync: accountsAsync,
                       monthlyFlowAsync: monthlyFlowAsync,
                       recentTxnsAsync: recentTxnsAsync,
+                      config: dashboardConfig,
                     )
                   else
                     _buildMobileLayout(
@@ -271,6 +381,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       accountsAsync: accountsAsync,
                       monthlyFlowAsync: monthlyFlowAsync,
                       recentTxnsAsync: recentTxnsAsync,
+                      config: dashboardConfig,
                     ),
 
                   const SizedBox(height: 80), // bottom space for FAB
@@ -292,8 +403,213 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           foregroundColor: Colors.white,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          onPressed: widget.onOpenAddTransaction,
+          onPressed: _openAddTransaction,
           child: const Icon(Icons.add_rounded, size: 28),
+        ),
+      ),
+    );
+  }
+
+  void _showConfigureDashboardSheet(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Consumer(
+          builder: (sheetCtx, sheetRef, _) {
+            final config = sheetRef.watch(dashboardConfigProvider);
+            final notifier = sheetRef.read(dashboardConfigProvider.notifier);
+
+            return Container(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurface : Colors.white,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border(
+                  top: BorderSide(
+                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                  ),
+                ),
+              ),
+              child: SafeArea(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.white24 : Colors.black12,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color:
+                                    AppColors.primary.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.tune_rounded,
+                                color: AppColors.primary,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Customize Dashboard',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: isDark
+                                    ? Colors.white
+                                    : AppColors.lightTextPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        TextButton(
+                          onPressed: () => notifier.resetDefaults(),
+                          child: const Text('Reset'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Choose which sections and cards appear on your dashboard.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.lightTextSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    _buildConfigSwitch(
+                      title: 'Top KPI Stat Cards',
+                      subtitle: 'Income, Expenses, Net Savings sparklines',
+                      icon: Icons.show_chart_rounded,
+                      value: config.showKpiCards,
+                      onChanged: (_) =>
+                          notifier.toggleWidget(DashboardWidgetType.kpiCards),
+                      isDark: isDark,
+                    ),
+                    _buildConfigSwitch(
+                      title: 'My Accounts',
+                      subtitle: 'Card carousel and account balances',
+                      icon: Icons.account_balance_wallet_rounded,
+                      value: config.showMyAccounts,
+                      onChanged: (_) =>
+                          notifier.toggleWidget(DashboardWidgetType.myAccounts),
+                      isDark: isDark,
+                    ),
+                    _buildConfigSwitch(
+                      title: 'Revenue Analysis',
+                      subtitle: 'Dual wave spline cashflow chart',
+                      icon: Icons.stacked_line_chart_rounded,
+                      value: config.showRevenueAnalysis,
+                      onChanged: (_) => notifier
+                          .toggleWidget(DashboardWidgetType.revenueAnalysis),
+                      isDark: isDark,
+                    ),
+                    _buildConfigSwitch(
+                      title: 'Expense Breakdown Donut',
+                      subtitle: 'Interactive category breakdown donut',
+                      icon: Icons.donut_large_rounded,
+                      value: config.showExpenseDonut,
+                      onChanged: (_) => notifier
+                          .toggleWidget(DashboardWidgetType.expenseDonut),
+                      isDark: isDark,
+                    ),
+                    _buildConfigSwitch(
+                      title: 'Recent Transactions',
+                      subtitle: 'Latest financial activity stream',
+                      icon: Icons.receipt_long_rounded,
+                      value: config.showRecentTransactions,
+                      onChanged: (_) => notifier
+                          .toggleWidget(DashboardWidgetType.recentTransactions),
+                      isDark: isDark,
+                    ),
+                    _buildConfigSwitch(
+                      title: 'Quick Transfers & Goals',
+                      subtitle: 'Direct peer transfers and savings goals',
+                      icon: Icons.savings_rounded,
+                      value: config.showQuickTransfer || config.showGoals,
+                      onChanged: (_) {
+                        notifier
+                            .toggleWidget(DashboardWidgetType.quickTransfer);
+                        notifier.toggleWidget(DashboardWidgetType.goals);
+                      },
+                      isDark: isDark,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildConfigSwitch({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+    required bool isDark,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        value: value,
+        onChanged: onChanged,
+        activeThumbColor: AppColors.primary,
+        secondary: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: isDark
+                ? AppColors.darkBorder.withValues(alpha: 0.4)
+                : AppColors.lightBorder.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            size: 18,
+            color: isDark ? Colors.white70 : AppColors.lightTextPrimary,
+          ),
+        ),
+        title: Text(
+          title,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: isDark ? Colors.white : AppColors.lightTextPrimary,
+          ),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: TextStyle(
+            fontSize: 11,
+            color: isDark
+                ? AppColors.darkTextSecondary
+                : AppColors.lightTextSecondary,
+          ),
         ),
       ),
     );
@@ -709,6 +1025,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     required AsyncValue<List<Account>> accountsAsync,
     required AsyncValue<MonthlyFlow> monthlyFlowAsync,
     required AsyncValue<List<dynamic>> recentTxnsAsync,
+    required DashboardConfig config,
   }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -718,60 +1035,72 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           flex: 6,
           child: Column(
             children: [
-              _buildRevenueAnalysisCard(isDark),
-              const SizedBox(height: 20),
+              if (config.showRevenueAnalysis) ...[
+                _buildRevenueAnalysisCard(isDark),
+                const SizedBox(height: 20),
+              ],
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: _buildExpensesDonutCard(
-                      context: context,
-                      totalExpense: monthlyFlowAsync.maybeWhen(
-                        data: (f) => f.expense,
-                        orElse: () => 1525.61,
+                  if (config.showExpenseDonut)
+                    Expanded(
+                      child: _buildExpensesDonutCard(
+                        context: context,
+                        totalExpense: monthlyFlowAsync.maybeWhen(
+                          data: (f) => f.expense,
+                          orElse: () => 1525.61,
+                        ),
+                        hideAmount: hideAmounts,
+                        isDark: isDark,
                       ),
-                      hideAmount: hideAmounts,
-                      isDark: isDark,
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildTransactionsSection(
-                      context: context,
-                      recentTxnsAsync: recentTxnsAsync,
-                      hideAmounts: hideAmounts,
-                      isDark: isDark,
-                      onViewAll: () => widget.onNavigate('/transactions'),
+                  if (config.showExpenseDonut && config.showRecentTransactions)
+                    const SizedBox(width: 16),
+                  if (config.showRecentTransactions)
+                    Expanded(
+                      child: _buildTransactionsSection(
+                        context: context,
+                        recentTxnsAsync: recentTxnsAsync,
+                        hideAmounts: hideAmounts,
+                        isDark: isDark,
+                        onViewAll: () => widget.onNavigate('/transactions'),
+                      ),
                     ),
-                  ),
                 ],
               ),
             ],
           ),
         ),
-        const SizedBox(width: 20),
-        // Right Column (My Accounts & Quick actions)
-        Expanded(
-          flex: 4,
-          child: Column(
-            children: [
-              _buildMyAccountsSection(
-                context: context,
-                totalBalance: totalBalance,
-                hideAmount: hideAmounts,
-                isDark: isDark,
-                accountsAsync: accountsAsync,
-                onAddAccount: () => widget.onNavigate('/accounts'),
-              ),
-              const SizedBox(height: 20),
-              _buildQuickTransfersAndGoals(
-                context: context,
-                isDark: isDark,
-                onNavigate: widget.onNavigate,
-              ),
-            ],
+        if (config.showMyAccounts ||
+            config.showQuickTransfer ||
+            config.showGoals) ...[
+          const SizedBox(width: 20),
+          // Right Column (My Accounts & Quick actions)
+          Expanded(
+            flex: 4,
+            child: Column(
+              children: [
+                if (config.showMyAccounts) ...[
+                  _buildMyAccountsSection(
+                    context: context,
+                    totalBalance: totalBalance,
+                    hideAmount: hideAmounts,
+                    isDark: isDark,
+                    accountsAsync: accountsAsync,
+                    onAddAccount: () => widget.onNavigate('/accounts'),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+                if (config.showQuickTransfer || config.showGoals)
+                  _buildQuickTransfersAndGoals(
+                    context: context,
+                    isDark: isDark,
+                    onNavigate: widget.onNavigate,
+                  ),
+              ],
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -785,52 +1114,63 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     required AsyncValue<List<Account>> accountsAsync,
     required AsyncValue<MonthlyFlow> monthlyFlowAsync,
     required AsyncValue<List<dynamic>> recentTxnsAsync,
+    required DashboardConfig config,
   }) {
     return Column(
       children: [
         // 1. My Accounts Section (Swiping Card Carousel vs All Tiles)
-        _buildMyAccountsSection(
-          context: context,
-          totalBalance: totalBalance,
-          hideAmount: hideAmounts,
-          isDark: isDark,
-          accountsAsync: accountsAsync,
-          onAddAccount: () => widget.onNavigate('/accounts'),
-        ),
-        const SizedBox(height: 22),
+        if (config.showMyAccounts) ...[
+          _buildMyAccountsSection(
+            context: context,
+            totalBalance: totalBalance,
+            hideAmount: hideAmounts,
+            isDark: isDark,
+            accountsAsync: accountsAsync,
+            onAddAccount: () => widget.onNavigate('/accounts'),
+          ),
+          const SizedBox(height: 22),
+        ],
 
         // 2. Revenue analysis Dual Spline Wave Chart
-        _buildRevenueAnalysisCard(isDark),
-        const SizedBox(height: 22),
+        if (config.showRevenueAnalysis) ...[
+          _buildRevenueAnalysisCard(isDark),
+          const SizedBox(height: 22),
+        ],
 
         // 3. Expenses Breakdown Donut Card
-        _buildExpensesDonutCard(
-          context: context,
-          totalExpense: monthlyFlowAsync.maybeWhen(
-            data: (f) => f.expense,
-            orElse: () => 1525.61,
+        if (config.showExpenseDonut) ...[
+          _buildExpensesDonutCard(
+            context: context,
+            totalExpense: monthlyFlowAsync.maybeWhen(
+              data: (f) => f.expense,
+              orElse: () => 1525.61,
+            ),
+            hideAmount: hideAmounts,
+            isDark: isDark,
           ),
-          hideAmount: hideAmounts,
-          isDark: isDark,
-        ),
-        const SizedBox(height: 22),
+          const SizedBox(height: 22),
+        ],
 
         // 4. Recent Transactions
-        _buildTransactionsSection(
-          context: context,
-          recentTxnsAsync: recentTxnsAsync,
-          hideAmounts: hideAmounts,
-          isDark: isDark,
-          onViewAll: () => widget.onNavigate('/transactions'),
-        ),
-        const SizedBox(height: 22),
+        if (config.showRecentTransactions) ...[
+          _buildTransactionsSection(
+            context: context,
+            recentTxnsAsync: recentTxnsAsync,
+            hideAmounts: hideAmounts,
+            isDark: isDark,
+            onViewAll: () => widget.onNavigate('/transactions'),
+          ),
+          const SizedBox(height: 22),
+        ],
 
         // 5. Quick Transfers & Goals
-        _buildQuickTransfersAndGoals(
-          context: context,
-          isDark: isDark,
-          onNavigate: widget.onNavigate,
-        ),
+        if (config.showQuickTransfer || config.showGoals) ...[
+          _buildQuickTransfersAndGoals(
+            context: context,
+            isDark: isDark,
+            onNavigate: widget.onNavigate,
+          ),
+        ],
       ],
     );
   }
@@ -908,17 +1248,28 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ),
                 ),
                 const SizedBox(width: 10),
-                InkWell(
-                  onTap: onAddAccount,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                    child: Text(
-                      'add account +',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                Tooltip(
+                  message: 'Add Account',
+                  child: InkWell(
+                    onTap: onAddAccount,
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? AppColors.darkSurface
+                            : AppColors.lightBackground,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isDark
+                              ? AppColors.darkBorder
+                              : AppColors.lightBorder,
+                          width: 0.8,
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.add_rounded,
+                        size: 18,
                         color: isDark
                             ? AppColors.primaryLight
                             : AppColors.primary,
@@ -1134,92 +1485,133 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               final totalWidth = constraints.maxWidth;
               const double peekWidth = 18.0;
               final cardWidth = totalWidth - peekWidth;
+              final totalCount = accounts.length;
 
-              // Real-time continuous scroll position for true stacked card deck animation
-              double page = 0.0;
-              if (_accountsPageController.hasClients &&
-                  _accountsPageController.position.haveDimensions) {
-                page = _accountsPageController.page ??
-                    _accountsPageIndex.toDouble();
-              } else {
-                page = _accountsPageIndex.toDouble();
+              // Ensure index is within range
+              if (_accountsPageIndex >= totalCount) {
+                _accountsPageIndex = 0;
               }
 
-              final safePage =
-                  page.clamp(0.0, (accounts.length - 1).toDouble());
-              final k = safePage.floor();
-              final t = (safePage - k).clamp(0.0, 1.0);
+              final currentIndex = _accountsPageIndex;
+              final nextIndex = (currentIndex + 1) % totalCount;
+              final prevIndex = (currentIndex - 1 + totalCount) % totalCount;
 
               final List<Widget> stackCards = [];
 
-              // 1. Upcoming card (k + 2) - lowest Z-index (tucked underneath behind k + 1)
-              if (k + 2 < accounts.length) {
-                stackCards.add(
-                  Positioned(
-                    left: peekWidth,
-                    top: 6,
-                    bottom: 6,
-                    width: cardWidth,
-                    child: Opacity(
-                      opacity: t.clamp(0.0, 1.0),
-                      child: Transform.scale(
-                        scale: 0.94,
-                        alignment: Alignment.centerRight,
-                        child: _buildAccountCardItem(
-                          accounts[k + 2],
-                          k + 2,
-                          hideAmount,
+              if (_dragDx <= 0) {
+                // Dragging LEFT (or idle): Current card on top, Next card underneath peeking on the right
+                final t = (-_dragDx / cardWidth).clamp(0.0, 1.0);
+
+                // 1. Third card (if totalCount > 2) tucked further behind
+                if (totalCount > 2) {
+                  final thirdIndex = (currentIndex + 2) % totalCount;
+                  stackCards.add(
+                    Positioned(
+                      left: peekWidth,
+                      top: 6,
+                      bottom: 6,
+                      width: cardWidth,
+                      child: Opacity(
+                        opacity: t.clamp(0.0, 0.8),
+                        child: Transform.scale(
+                          scale: 0.90 + 0.04 * t,
+                          alignment: Alignment.centerRight,
+                          child: _buildAccountCardItem(
+                            accounts[thirdIndex],
+                            thirdIndex,
+                            hideAmount,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                );
-              }
+                  );
+                }
 
-              // 2. Immediate underneath card (k + 1) - sits physically BEHIND Card k!
-              // Only its right edge peeks out from behind Card k
-              if (k + 1 < accounts.length) {
-                final underneathLeft = (1.0 - t) * peekWidth;
-                final underneathInset = (1.0 - t) * 6.0;
-                final underneathScale = 0.94 + (0.06 * t);
+                // 2. Next card: Underneath! Peeks 18px on the right when idle (t=0); scales up and slides into view as t -> 1
+                final nextLeft = (1.0 - t) * peekWidth;
+                final nextInset = (1.0 - t) * 6.0;
+                final nextScale = 0.94 + (0.06 * t);
 
                 stackCards.add(
                   Positioned(
-                    left: underneathLeft,
-                    top: underneathInset,
-                    bottom: underneathInset,
+                    left: nextLeft,
+                    top: nextInset,
+                    bottom: nextInset,
                     width: cardWidth,
                     child: Transform.scale(
-                      scale: underneathScale,
+                      scale: nextScale,
                       alignment: Alignment.centerRight,
                       child: _buildAccountCardItem(
-                        accounts[k + 1],
-                        k + 1,
+                        accounts[nextIndex],
+                        nextIndex,
                         hideAmount,
                       ),
                     ),
                   ),
                 );
-              }
 
-              // 3. Current active card (k) - ON TOP in Z-order!
-              // Covers Card k + 1 everywhere except the right edge.
-              // When swiping left, it slides away off-screen.
-              if (k < accounts.length) {
-                final frontLeft = -t * (cardWidth + 24.0);
-                final frontOpacity = (1.0 - t * 0.4).clamp(0.0, 1.0);
+                // 3. Current card: ON TOP! Slides left as user drags
+                final currentLeft = _dragDx;
+                final currentOpacity = (1.0 - t * 0.35).clamp(0.0, 1.0);
 
                 stackCards.add(
                   Positioned(
-                    left: frontLeft,
+                    left: currentLeft,
                     top: 0,
                     bottom: 0,
                     width: cardWidth,
                     child: Opacity(
-                      opacity: frontOpacity,
+                      opacity: currentOpacity,
                       child: _buildAccountCardItem(
-                        accounts[k],
-                        k,
+                        accounts[currentIndex],
+                        currentIndex,
+                        hideAmount,
+                      ),
+                    ),
+                  ),
+                );
+              } else {
+                // Dragging RIGHT: Previous card slides in from left OVER current card!
+                final t = (_dragDx / cardWidth).clamp(0.0, 1.0);
+
+                // 1. Current card: becomes underneath as previous card slides over it
+                final currentScale = 1.0 - 0.06 * t;
+                final currentInset = t * 6.0;
+                final currentLeft = t * peekWidth;
+
+                stackCards.add(
+                  Positioned(
+                    left: currentLeft,
+                    top: currentInset,
+                    bottom: currentInset,
+                    width: cardWidth,
+                    child: Transform.scale(
+                      scale: currentScale,
+                      alignment: Alignment.centerRight,
+                      child: _buildAccountCardItem(
+                        accounts[currentIndex],
+                        currentIndex,
+                        hideAmount,
+                      ),
+                    ),
+                  ),
+                );
+
+                // 2. Previous card: ON TOP sliding in from left!
+                final prevLeft = -cardWidth + _dragDx;
+                final prevOpacity = (0.7 + 0.3 * t).clamp(0.0, 1.0);
+
+                stackCards.add(
+                  Positioned(
+                    left: prevLeft,
+                    top: 0,
+                    bottom: 0,
+                    width: cardWidth,
+                    child: Opacity(
+                      opacity: prevOpacity,
+                      child: _buildAccountCardItem(
+                        accounts[prevIndex],
+                        prevIndex,
                         hideAmount,
                       ),
                     ),
@@ -1227,35 +1619,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 );
               }
 
-              // 4. Transparent PageView on top to handle touch, inertia, fling & snapping
+              // 4. Interactive Gesture detector covering the card stack
               stackCards.add(
                 Positioned.fill(
-                  child: PageView.builder(
-                    controller: _accountsPageController,
-                    itemCount: accounts.length,
-                    onPageChanged: (idx) {
-                      setState(() {
-                        _accountsPageIndex = idx;
-                      });
-                    },
-                    itemBuilder: (context, index) {
-                      return GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTapUp: (details) {
-                          // Tapping the exposed right edge peeking card advances to next card;
-                          // tapping anywhere on the card opens accounts screen.
-                          if (details.localPosition.dx > totalWidth - 44 &&
-                              _accountsPageIndex < accounts.length - 1) {
-                            _accountsPageController.nextPage(
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeOutCubic,
-                            );
-                          } else {
-                            widget.onNavigate('/accounts');
-                          }
-                        },
-                        child: const SizedBox.expand(),
-                      );
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onHorizontalDragUpdate: _onCardDragUpdate,
+                    onHorizontalDragEnd: (details) =>
+                        _onCardDragEnd(details, cardWidth, totalCount),
+                    onTapUp: (details) {
+                      if (details.localPosition.dx > totalWidth - 44) {
+                        _advanceToNextCard(cardWidth, totalCount);
+                      } else {
+                        widget.onNavigate('/accounts');
+                      }
                     },
                   ),
                 ),
@@ -1275,16 +1652,27 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(accounts.length, (i) {
               final isCurrent = i == _accountsPageIndex;
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                width: isCurrent ? 16 : 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: isCurrent
-                      ? AppColors.primary
-                      : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
-                  borderRadius: BorderRadius.circular(3),
+              return GestureDetector(
+                onTap: () {
+                  if (i != _accountsPageIndex && !_isCardAnimating) {
+                    setState(() {
+                      _accountsPageIndex = i;
+                    });
+                  }
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  width: isCurrent ? 18 : 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: isCurrent
+                        ? AppColors.primary
+                        : (isDark
+                            ? AppColors.darkBorder
+                            : AppColors.lightBorder),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
                 ),
               );
             }),

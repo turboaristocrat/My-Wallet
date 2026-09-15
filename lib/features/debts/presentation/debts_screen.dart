@@ -35,10 +35,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
           isDark ? AppColors.darkBackground : AppColors.lightBackground,
       drawer: AppSideDrawer(
         currentRoute: '/debts',
-        onNavigate: (route) {
-          Navigator.of(context).pop();
-          widget.onNavigate(route);
-        },
+        onNavigate: widget.onNavigate,
       ),
       body: SafeArea(
         child: CustomScrollView(

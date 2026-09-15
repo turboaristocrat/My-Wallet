@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_styles.dart';
 import '../../../core/database/app_database.dart';
@@ -7,6 +8,8 @@ import '../../../core/theme/theme_provider.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../navigation/presentation/side_drawer.dart';
 import '../data/account_repository.dart';
+import '../../transactions/data/transaction_repository.dart';
+import '../../transactions/presentation/add_transaction_sheet.dart';
 
 class AccountsScreen extends ConsumerStatefulWidget {
   final ValueChanged<String> onNavigate;
@@ -862,7 +865,6 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
 
           return Container(
             margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: isDark ? AppColors.darkCard : AppColors.lightCard,
               borderRadius: AppStyles.roundedL,
@@ -871,145 +873,502 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
               ),
               boxShadow: AppStyles.softShadow,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: accentColor.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: accentColor.withValues(alpha: 0.35),
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: Icon(
-                        isCredit
-                            ? Icons.credit_card_rounded
-                            : (a.type == 'cash'
-                                ? Icons.payments_rounded
-                                : (a.type == 'wallet'
-                                    ? Icons.account_balance_wallet_rounded
-                                    : Icons.account_balance_rounded)),
-                        color: accentColor,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: AppStyles.roundedL,
+                onTap: () => _showAccountTransactionsSheet(context, a),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          Text(
-                            a.name,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: isDark
-                                  ? Colors.white
-                                  : AppColors.lightTextPrimary,
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: accentColor.withValues(alpha: 0.16),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: accentColor.withValues(alpha: 0.35),
+                              ),
+                            ),
+                            alignment: Alignment.center,
+                            child: Icon(
+                              isCredit
+                                  ? Icons.credit_card_rounded
+                                  : (a.type == 'cash'
+                                      ? Icons.payments_rounded
+                                      : (a.type == 'wallet'
+                                          ? Icons.account_balance_wallet_rounded
+                                          : Icons.account_balance_rounded)),
+                              color: accentColor,
+                              size: 20,
                             ),
                           ),
-                          const SizedBox(height: 3),
-                          Text(
-                            a.accountNumberMask != null
-                                ? '•••• ${a.accountNumberMask}'
-                                : a.type.replaceAll('_', ' ').toUpperCase(),
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              letterSpacing: 0.3,
-                              color: isDark
-                                  ? AppColors.darkTextSecondary
-                                  : AppColors.lightTextSecondary,
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  a.name,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark
+                                        ? Colors.white
+                                        : AppColors.lightTextPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  a.accountNumberMask != null
+                                      ? '•••• ${a.accountNumberMask}'
+                                      : a.type.replaceAll('_', ' ').toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                    letterSpacing: 0.3,
+                                    color: isDark
+                                        ? AppColors.darkTextSecondary
+                                        : AppColors.lightTextSecondary,
+                                  ),
+                                ),
+                              ],
                             ),
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                CurrencyFormatter.format(
+                                  a.balance,
+                                  hideAmount: hideAmounts,
+                                ),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.3,
+                                  color: a.balance < 0
+                                      ? AppColors.expense
+                                      : (isDark
+                                          ? Colors.white
+                                          : AppColors.lightTextPrimary),
+                                ),
+                              ),
+                              if (a.creditLimit != null)
+                                Text(
+                                  'Limit: ${CurrencyFormatter.format(a.creditLimit!, showDecimals: false)}',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: isDark
+                                        ? AppColors.darkTextTertiary
+                                        : AppColors.lightTextSecondary,
+                                  ),
+                                ),
+                            ],
                           ),
                         ],
                       ),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          CurrencyFormatter.format(
-                            a.balance,
-                            hideAmount: hideAmounts,
-                          ),
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.3,
-                            color: a.balance < 0
-                                ? AppColors.expense
-                                : (isDark
-                                    ? Colors.white
-                                    : AppColors.lightTextPrimary),
-                          ),
+                      if (usageRatio != null) ...[
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Credit Used: ${(usageRatio * 100).toStringAsFixed(0)}%',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: isDark
+                                    ? AppColors.darkTextTertiary
+                                    : AppColors.lightTextSecondary,
+                              ),
+                            ),
+                            Text(
+                              'Available: ${CurrencyFormatter.format((a.creditLimit! - (a.balance < 0 ? a.balance.abs() : 0.0)).clamp(0, a.creditLimit!), showDecimals: false)}',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? AppColors.income : AppColors.incomeGreen,
+                              ),
+                            ),
+                          ],
                         ),
-                        if (a.creditLimit != null)
-                          Text(
-                            'Limit: ${CurrencyFormatter.format(a.creditLimit!, showDecimals: false)}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: isDark
-                                  ? AppColors.darkTextTertiary
-                                  : AppColors.lightTextSecondary,
+                        const SizedBox(height: 6),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: usageRatio,
+                            minHeight: 4,
+                            backgroundColor: isDark
+                                ? AppColors.darkSurface
+                                : AppColors.lightDivider,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              usageRatio > 0.8 ? AppColors.expense : AppColors.income,
                             ),
                           ),
+                        ),
                       ],
-                    ),
-                  ],
-                ),
-                if (usageRatio != null) ...[
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Credit Used: ${(usageRatio * 100).toStringAsFixed(0)}%',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: isDark
-                              ? AppColors.darkTextTertiary
-                              : AppColors.lightTextSecondary,
-                        ),
-                      ),
-                      Text(
-                        'Available: ${CurrencyFormatter.format((a.creditLimit! - (a.balance < 0 ? a.balance.abs() : 0.0)).clamp(0, a.creditLimit!), showDecimals: false)}',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? AppColors.income : AppColors.incomeGreen,
-                        ),
-                      ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: usageRatio,
-                      minHeight: 4,
-                      backgroundColor: isDark
-                          ? AppColors.darkSurface
-                          : AppColors.lightDivider,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        usageRatio > 0.8 ? AppColors.expense : AppColors.income,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
+                ),
+              ),
             ),
           );
         }),
         const SizedBox(height: 8),
       ],
+    );
+  }
+
+  void _showAccountTransactionsSheet(BuildContext context, Account account) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorInt = int.tryParse(account.colorHex) ?? 0xFF8B5CF6;
+    final accentColor = Color(colorInt);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.72,
+          minChildSize: 0.40,
+          maxChildSize: 0.95,
+          builder: (sheetCtx, scrollController) {
+            return Container(
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkCard : Colors.white,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(28)),
+                border: Border.all(
+                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                ),
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
+                  // Drag Handle
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? AppColors.darkBorder
+                            : AppColors.lightBorder,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Account Summary Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: accentColor.withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: accentColor.withValues(alpha: 0.35),
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Icon(
+                            account.type == 'credit_card'
+                                ? Icons.credit_card_rounded
+                                : (account.type == 'cash'
+                                    ? Icons.payments_rounded
+                                    : (account.type == 'wallet'
+                                        ? Icons.account_balance_wallet_rounded
+                                        : Icons.account_balance_rounded)),
+                            color: accentColor,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                account.name,
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: isDark
+                                      ? Colors.white
+                                      : AppColors.lightTextPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                account.accountNumberMask != null
+                                    ? '•••• ${account.accountNumberMask} • ${account.type.toUpperCase()}'
+                                    : account.type.toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: isDark
+                                      ? AppColors.darkTextSecondary
+                                      : AppColors.lightTextSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              CurrencyFormatter.format(account.balance),
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: account.balance < 0
+                                    ? AppColors.expense
+                                    : (isDark
+                                        ? Colors.white
+                                        : AppColors.lightTextPrimary),
+                              ),
+                            ),
+                            Text(
+                              'Current Balance',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: isDark
+                                    ? AppColors.darkTextSecondary
+                                    : AppColors.lightTextSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Quick Action Buttons
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              side: BorderSide(
+                                color: AppColors.primary.withValues(alpha: 0.5),
+                              ),
+                            ),
+                            onPressed: () {
+                              Navigator.of(ctx).pop();
+                              showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                useSafeArea: true,
+                                backgroundColor: Colors.transparent,
+                                builder: (_) => AddTransactionSheet(
+                                  preselectedAccountId: account.id,
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.add_rounded, size: 18),
+                            label: const Text(
+                              'Add Transaction',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              side: BorderSide(
+                                color: isDark
+                                    ? AppColors.darkBorder
+                                    : AppColors.lightBorder,
+                              ),
+                            ),
+                            onPressed: () {
+                              Navigator.of(ctx).pop();
+                              widget.onNavigate('/transactions');
+                            },
+                            icon: const Icon(Icons.receipt_long_rounded, size: 18),
+                            label: const Text(
+                              'Full Ledger',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Divider(
+                    height: 1,
+                    color: isDark ? AppColors.darkBorder : AppColors.lightDivider,
+                  ),
+
+                  // Transactions List for this Account
+                  Expanded(
+                    child: Consumer(
+                      builder: (c, ref, _) {
+                        final txnsAsync = ref.watch(
+                          accountTransactionsStreamProvider(account.id),
+                        );
+
+                        return txnsAsync.when(
+                          data: (txns) {
+                            if (txns.isEmpty) {
+                              return Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(32),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.receipt_long_outlined,
+                                        size: 40,
+                                        color: isDark
+                                            ? AppColors.darkTextSecondary
+                                            : AppColors.lightTextSecondary,
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        'No Transactions Yet',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          color: isDark
+                                              ? Colors.white
+                                              : AppColors.lightTextPrimary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Transactions logged for this account will appear here.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: isDark
+                                              ? AppColors.darkTextSecondary
+                                              : AppColors.lightTextSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }
+
+                            final dateFormat = DateFormat('dd MMM, hh:mm a');
+
+                            return ListView.separated(
+                              controller: scrollController,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 12),
+                              itemCount: txns.length,
+                              separatorBuilder: (_, _) => Divider(
+                                height: 1,
+                                color: isDark
+                                    ? AppColors.darkBorder.withValues(alpha: 0.5)
+                                    : AppColors.lightBorder.withValues(alpha: 0.5),
+                              ),
+                              itemBuilder: (ctx, i) {
+                                final txn = txns[i];
+                                final isIncome = txn.type == 'income';
+                                final isTransfer = txn.type == 'transfer';
+
+                                return ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
+                                  leading: CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor: isIncome
+                                        ? AppColors.income.withValues(alpha: 0.15)
+                                        : (isTransfer
+                                            ? AppColors.primary.withValues(alpha: 0.15)
+                                            : AppColors.expense.withValues(alpha: 0.15)),
+                                    child: Icon(
+                                      isIncome
+                                          ? Icons.arrow_downward_rounded
+                                          : (isTransfer
+                                              ? Icons.swap_horiz_rounded
+                                              : Icons.arrow_upward_rounded),
+                                      size: 18,
+                                      color: isIncome
+                                          ? AppColors.income
+                                          : (isTransfer
+                                              ? AppColors.primary
+                                              : AppColors.expense),
+                                    ),
+                                  ),
+                                  title: Text(
+                                    txn.merchantName ?? txn.note ?? 'Transaction',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: isDark
+                                          ? Colors.white
+                                          : AppColors.lightTextPrimary,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    dateFormat.format(txn.transactionDate),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: isDark
+                                          ? AppColors.darkTextSecondary
+                                          : AppColors.lightTextSecondary,
+                                    ),
+                                  ),
+                                  trailing: Text(
+                                    '${isIncome ? '+' : (isTransfer ? '' : '-')}${CurrencyFormatter.format(txn.amount)}',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: isIncome
+                                          ? AppColors.income
+                                          : (isTransfer
+                                              ? AppColors.primary
+                                              : AppColors.expense),
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                          loading: () => const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                          error: (_, _) => const SizedBox(),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

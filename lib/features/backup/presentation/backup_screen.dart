@@ -32,10 +32,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
           isDark ? AppColors.darkBackground : AppColors.lightBackground,
       drawer: AppSideDrawer(
         currentRoute: '/backup',
-        onNavigate: (route) {
-          Navigator.of(context).pop();
-          widget.onNavigate(route);
-        },
+        onNavigate: widget.onNavigate,
       ),
       body: SafeArea(
         child: _isLoading

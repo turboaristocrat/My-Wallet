@@ -310,10 +310,7 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
       drawer: AppSideDrawer(
         currentRoute: '/investments',
-        onNavigate: (route) {
-          Navigator.of(context).pop();
-          widget.onNavigate(route);
-        },
+        onNavigate: widget.onNavigate,
       ),
       appBar: AppBar(
         backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,

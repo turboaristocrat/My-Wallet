@@ -17,8 +17,11 @@ import 'features/settings/presentation/settings_screen.dart';
 import 'features/split/presentation/split_expenses_screen.dart';
 import 'features/extras/presentation/feature_hub_screen.dart';
 import 'features/investments/presentation/investments_screen.dart';
+import 'features/navigation/presentation/app_bottom_nav_bar.dart';
 import 'features/transactions/presentation/add_transaction_sheet.dart';
 import 'features/transactions/presentation/transactions_screen.dart';
+
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final appStateProvider = FutureProvider<String>((ref) async {
   final storage = ref.watch(secureStorageProvider);
@@ -45,12 +48,15 @@ class _MyWalletAppState extends ConsumerState<MyWalletApp> {
   }
 
   void _openAddTransaction() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (_) => const AddTransactionSheet(),
-    );
+    final navContext = rootNavigatorKey.currentContext;
+    if (navContext != null) {
+      showModalBottomSheet(
+        context: navContext,
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (_) => const AddTransactionSheet(),
+      );
+    }
   }
 
   @override
@@ -59,6 +65,7 @@ class _MyWalletAppState extends ConsumerState<MyWalletApp> {
     final appStateAsync = ref.watch(appStateProvider);
 
     return MaterialApp(
+      navigatorKey: rootNavigatorKey,
       title: 'My Wallet',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
@@ -84,50 +91,85 @@ class _MyWalletAppState extends ConsumerState<MyWalletApp> {
           }
 
           // Main Navigation Router
+          Widget screenWidget;
           switch (_currentRoute) {
             case '/inbox':
-              return InboxScreen(onNavigate: _navigateTo);
+              screenWidget = InboxScreen(onNavigate: _navigateTo);
+              break;
             case '/accounts':
-              return AccountsScreen(onNavigate: _navigateTo);
+              screenWidget = AccountsScreen(onNavigate: _navigateTo);
+              break;
             case '/transactions':
-              return TransactionsScreen(onNavigate: _navigateTo);
+              screenWidget = TransactionsScreen(onNavigate: _navigateTo);
+              break;
             case '/analytics':
-              return ReportsScreen(onNavigate: _navigateTo);
+              screenWidget = ReportsScreen(onNavigate: _navigateTo);
+              break;
             case '/budgets':
-              return BudgetsScreen(onNavigate: _navigateTo, initialTab: 'budgets');
+              screenWidget = BudgetsScreen(onNavigate: _navigateTo, initialTab: 'budgets');
+              break;
             case '/goals':
-              return BudgetsScreen(onNavigate: _navigateTo, initialTab: 'goals');
+              screenWidget = BudgetsScreen(onNavigate: _navigateTo, initialTab: 'goals');
+              break;
             case '/rules':
-              return RulesScreen(onNavigate: _navigateTo);
+              screenWidget = RulesScreen(onNavigate: _navigateTo);
+              break;
             case '/recurring':
-              return RecurringScreen(onNavigate: _navigateTo);
+              screenWidget = RecurringScreen(onNavigate: _navigateTo);
+              break;
             case '/debts':
-              return DebtsScreen(onNavigate: _navigateTo);
+              screenWidget = DebtsScreen(onNavigate: _navigateTo);
+              break;
             case '/copilot':
-              return CopilotScreen(onNavigate: _navigateTo);
+              screenWidget = CopilotScreen(onNavigate: _navigateTo);
+              break;
             case '/split_expenses':
-              return SplitExpensesScreen(onNavigate: _navigateTo);
+              screenWidget = SplitExpensesScreen(onNavigate: _navigateTo);
+              break;
             case '/investments':
-              return InvestmentsScreen(onNavigate: _navigateTo);
+              screenWidget = InvestmentsScreen(onNavigate: _navigateTo);
+              break;
             case '/gift_cards':
             case '/shopping_lists':
             case '/warranties':
             case '/family_mode':
-              return FeatureHubScreen(
+              screenWidget = FeatureHubScreen(
                 route: _currentRoute,
                 onNavigate: _navigateTo,
               );
+              break;
             case '/settings':
-              return SettingsScreen(onNavigate: _navigateTo);
+              screenWidget = SettingsScreen(onNavigate: _navigateTo);
+              break;
             case '/backup':
-              return BackupScreen(onNavigate: _navigateTo);
+              screenWidget = BackupScreen(onNavigate: _navigateTo);
+              break;
             case '/dashboard':
             default:
-              return DashboardScreen(
+              screenWidget = DashboardScreen(
                 onOpenAddTransaction: _openAddTransaction,
                 onNavigate: _navigateTo,
               );
+              break;
           }
+
+          final showBottomNav = [
+            '/dashboard',
+            '/accounts',
+            '/transactions',
+            '/analytics',
+            '/settings',
+          ].contains(_currentRoute);
+
+          return Scaffold(
+            body: screenWidget,
+            bottomNavigationBar: showBottomNav
+                ? AppBottomNavBar(
+                    currentRoute: _currentRoute,
+                    onNavigate: _navigateTo,
+                  )
+                : null,
+          );
         },
         loading: () => const Scaffold(
           body: Center(child: CircularProgressIndicator()),

@@ -49,10 +49,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           isDark ? AppColors.darkBackground : AppColors.lightBackground,
       drawer: AppSideDrawer(
         currentRoute: '/settings',
-        onNavigate: (route) {
-          Navigator.of(context).pop();
-          widget.onNavigate(route);
-        },
+        onNavigate: widget.onNavigate,
       ),
       body: SafeArea(
         child: CustomScrollView(

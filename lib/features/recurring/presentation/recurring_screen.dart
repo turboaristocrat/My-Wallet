@@ -35,10 +35,7 @@ class _RecurringScreenState extends ConsumerState<RecurringScreen> {
           isDark ? AppColors.darkBackground : AppColors.lightBackground,
       drawer: AppSideDrawer(
         currentRoute: '/recurring',
-        onNavigate: (route) {
-          Navigator.of(context).pop();
-          widget.onNavigate(route);
-        },
+        onNavigate: widget.onNavigate,
       ),
       body: SafeArea(
         child: CustomScrollView(

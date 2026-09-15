@@ -165,10 +165,7 @@ class _FeatureHubScreenState extends ConsumerState<FeatureHubScreen> {
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
       drawer: AppSideDrawer(
         currentRoute: widget.route,
-        onNavigate: (r) {
-          Navigator.of(context).pop();
-          widget.onNavigate(r);
-        },
+        onNavigate: widget.onNavigate,
       ),
       appBar: AppBar(
         backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
