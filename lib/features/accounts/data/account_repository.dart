@@ -55,6 +55,30 @@ class AccountRepository {
     return id;
   }
 
+  /// Update account details
+  Future<void> updateAccount({
+    required String id,
+    required String name,
+    required String type,
+    String? accountNumberMask,
+    String? colorHex,
+    double? balance,
+    double? creditLimit,
+  }) async {
+    await (_db.update(_db.accounts)..where((tbl) => tbl.id.equals(id))).write(
+      AccountsCompanion(
+        name: Value(name),
+        type: Value(type),
+        accountNumberMask: Value(accountNumberMask),
+        colorHex: colorHex != null ? Value(colorHex) : const Value.absent(),
+        balance: balance != null ? Value(balance) : const Value.absent(),
+        creditLimit: creditLimit != null ? Value(creditLimit) : const Value.absent(),
+        updatedAt: Value(DateTime.now()),
+        syncStatus: const Value('pending_upload'),
+      ),
+    );
+  }
+
   /// Update balance by delta (positive for income/credit, negative for expense/debit)
   Future<void> updateBalance(String id, double delta) async {
     final account = await getAccountById(id);

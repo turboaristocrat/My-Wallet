@@ -2703,6 +2703,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     method: t.paymentType.toUpperCase(),
                     isDark: isDark,
                     hideAmount: hideAmounts,
+                    onTap: () {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        useSafeArea: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (_) => AddTransactionSheet(
+                          initialTransaction: t,
+                        ),
+                      );
+                    },
                   );
                 }).toList(),
               );
@@ -2749,9 +2760,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     required String method,
     required bool isDark,
     required bool hideAmount,
+    VoidCallback? onTap,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 4),
       child: Row(
         children: [
           CircleAvatar(
@@ -2808,8 +2823,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   // --- Quick Transfers & Goals ---
   Widget _buildQuickTransfersAndGoals({

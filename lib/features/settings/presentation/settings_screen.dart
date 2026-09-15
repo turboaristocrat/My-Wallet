@@ -4,6 +4,8 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../auth/presentation/lock_screen.dart';
 import '../../navigation/presentation/side_drawer.dart';
+import '../../categories/presentation/manage_categories_dialog.dart';
+import '../../tags/presentation/manage_tags_dialog.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   final void Function(String route) onNavigate;
@@ -304,9 +306,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ],
                   ),
                 ),
+                // Section 4: Categories & Tags Management
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildSectionTitle(isDark, 'Categories & Tags', Icons.category_rounded),
+                ),
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildSettingsGroup(
+                    isDark: isDark,
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.account_tree_rounded, color: AppColors.primary),
+                        title: const Text('Categories & Subcategories',
+                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                        subtitle: const Text('Manage expense & income categories and subcategories',
+                            style: TextStyle(fontSize: 12)),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: () => ManageCategoriesDialog.show(context),
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: const Icon(Icons.label_rounded, color: Color(0xFF26B2AB)),
+                        title: const Text('Transaction Tags',
+                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                        subtitle: const Text('Add, edit, or remove custom tags and labels',
+                            style: TextStyle(fontSize: 12)),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: () => ManageTagsDialog.show(context),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 24),
 
-                // Section 4: Data Management & Portability
+                // Section 5: Data Management & Portability
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _buildSectionTitle(isDark, 'Data Management', Icons.folder_zip_rounded),

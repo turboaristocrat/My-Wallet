@@ -10,6 +10,7 @@ import '../../navigation/presentation/side_drawer.dart';
 import '../data/account_repository.dart';
 import '../../transactions/data/transaction_repository.dart';
 import '../../transactions/presentation/add_transaction_sheet.dart';
+import 'edit_account_dialog.dart';
 
 class AccountsScreen extends ConsumerStatefulWidget {
   final ValueChanged<String> onNavigate;
@@ -1153,6 +1154,15 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                             ),
                           ],
                         ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined, size: 20),
+                          tooltip: 'Edit Account',
+                          onPressed: () {
+                            Navigator.of(ctx).pop();
+                            EditAccountDialog.show(context, account);
+                          },
+                        ),
                       ],
                     ),
                   ),
@@ -1299,6 +1309,18 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                                 return ListTile(
                                   contentPadding: const EdgeInsets.symmetric(
                                       horizontal: 8, vertical: 4),
+                                  onTap: () {
+                                    Navigator.of(ctx).pop();
+                                    showModalBottomSheet(
+                                      context: context,
+                                      isScrollControlled: true,
+                                      useSafeArea: true,
+                                      backgroundColor: Colors.transparent,
+                                      builder: (_) => AddTransactionSheet(
+                                        initialTransaction: txn,
+                                      ),
+                                    );
+                                  },
                                   leading: CircleAvatar(
                                     radius: 18,
                                     backgroundColor: isIncome
