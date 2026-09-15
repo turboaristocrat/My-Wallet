@@ -54,7 +54,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   void initState() {
     super.initState();
     _kpiPageController = PageController();
-    _accountsPageController = PageController(viewportFraction: 0.88);
+    _accountsPageController = PageController();
     _accountsPageController.addListener(_onAccountsPageScroll);
     _loadProfileName();
   }
@@ -1115,146 +1115,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
 
     if (accounts.length == 1) {
-      final account = accounts.first;
-      final gradient = _accountCardGradients.first;
-      final mask = account.accountNumberMask != null
-          ? '•••• •••• •••• ${account.accountNumberMask}'
-          : '•••• •••• •••• 0001';
-      final badgeLabel = account.type.toUpperCase().replaceAll('_', ' ');
-
       return GestureDetector(
         onTap: () => widget.onNavigate('/accounts'),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            // Background peeking card (layered deck visual)
-            Positioned(
-              right: 0,
-              top: 14,
-              bottom: -6,
-              child: Container(
-                width: 120,
-                decoration: BoxDecoration(
-                  gradient: _accountCardGradients[1],
-                  borderRadius: AppStyles.roundedL,
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x3DF43F5E),
-                      blurRadius: 18,
-                      offset: Offset(0, 8),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            // Foreground single account card
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              margin: const EdgeInsets.only(right: 14),
-              decoration: BoxDecoration(
-                gradient: gradient,
-                borderRadius: AppStyles.roundedL,
-                boxShadow: AppStyles.heroGlowShadow,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            account.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.88),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            CurrencyFormatter.format(
-                              account.balance,
-                              hideAmount: hideAmount,
-                            ),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 9, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.22),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          badgeLabel,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    mask,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      letterSpacing: 2.0,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            _getAccountTypeIcon(account.type),
-                            color: Colors.white.withValues(alpha: 0.9),
-                            size: 16,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            _getAccountTypeDisplayName(account.type),
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.85),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Icon(
-                        Icons.contactless_rounded,
-                        color: Colors.white.withValues(alpha: 0.9),
-                        size: 18,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
+        child: SizedBox(
+          width: double.infinity,
+          height: 200,
+          child: _buildAccountCardItem(accounts.first, 0, hideAmount),
         ),
       );
     }
@@ -1263,170 +1129,141 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       children: [
         SizedBox(
           height: 200,
-          child: PageView.builder(
-            controller: _accountsPageController,
-            clipBehavior: Clip.none,
-            itemCount: accounts.length,
-            onPageChanged: (idx) {
-              setState(() {
-                _accountsPageIndex = idx;
-              });
-            },
-            itemBuilder: (context, index) {
-              final account = accounts[index];
-              final gradient =
-                  _accountCardGradients[index % _accountCardGradients.length];
-              final mask = account.accountNumberMask != null
-                  ? '•••• •••• •••• ${account.accountNumberMask}'
-                  : '•••• •••• •••• ${index.toString().padLeft(4, '0')}';
-              final badgeLabel =
-                  account.type.toUpperCase().replaceAll('_', ' ');
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final totalWidth = constraints.maxWidth;
+              const double peekWidth = 18.0;
+              final cardWidth = totalWidth - peekWidth;
 
-              // Real-time continuous scroll position for 3D card deck animation
-              double pageOffset = 0.0;
-              if (_accountsPageController.position.haveDimensions) {
-                pageOffset =
-                    (_accountsPageController.page ?? _accountsPageIndex.toDouble()) -
-                        index;
+              // Real-time continuous scroll position for true stacked card deck animation
+              double page = 0.0;
+              if (_accountsPageController.hasClients &&
+                  _accountsPageController.position.haveDimensions) {
+                page = _accountsPageController.page ??
+                    _accountsPageIndex.toDouble();
               } else {
-                pageOffset = (_accountsPageIndex - index).toDouble();
+                page = _accountsPageIndex.toDouble();
               }
 
-              final absOffset = pageOffset.abs();
-              final isUnderneath = pageOffset < 0; // Next card, sitting underneath on the right
+              final safePage =
+                  page.clamp(0.0, (accounts.length - 1).toDouble());
+              final k = safePage.floor();
+              final t = (safePage - k).clamp(0.0, 1.0);
 
-              // When underneath: scaled down to 0.88, translated down by 10px, tucked left
-              // As the user swipes towards this card, it expands to 1.0, rises to Y=0, and comes to front!
-              final progress = (1.0 - absOffset).clamp(0.0, 1.0);
-              final scale = 0.88 + (0.12 * progress);
-              final translateY = 10.0 * (1.0 - progress);
-              final translateX = isUnderneath ? (-22.0 * (1.0 - progress)) : 0.0;
-              final opacity = (0.72 + (0.28 * progress)).clamp(0.0, 1.0);
+              final List<Widget> stackCards = [];
 
-              return Transform.translate(
-                offset: Offset(translateX, translateY),
-                child: Transform.scale(
-                  scale: scale,
-                  alignment:
-                      isUnderneath ? Alignment.centerLeft : Alignment.centerRight,
-                  child: Opacity(
-                    opacity: opacity,
-                    child: GestureDetector(
-                      onTap: () => widget.onNavigate('/accounts'),
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 6),
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          gradient: gradient,
-                          borderRadius: AppStyles.roundedL,
-                          boxShadow: [
-                            BoxShadow(
-                              color: gradient.colors.first.withValues(
-                                alpha: 0.25 + (0.25 * progress),
-                              ),
-                              blurRadius: 10 + (12 * progress),
-                              offset: Offset(0, 4 + (6 * progress)),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      account.name,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: Colors.white.withValues(alpha: 0.88),
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      CurrencyFormatter.format(
-                                        account.balance,
-                                        hideAmount: hideAmount,
-                                      ),
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.w800,
-                                        letterSpacing: -0.5,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 9, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.22),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    badgeLabel,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 0.8,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Text(
-                              mask,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                letterSpacing: 2.0,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(
-                                      _getAccountTypeIcon(account.type),
-                                      color: Colors.white.withValues(alpha: 0.9),
-                                      size: 16,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      _getAccountTypeDisplayName(account.type),
-                                      style: TextStyle(
-                                        color: Colors.white.withValues(alpha: 0.85),
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                Icon(
-                                  Icons.contactless_rounded,
-                                  color: Colors.white.withValues(alpha: 0.9),
-                                  size: 18,
-                                ),
-                              ],
-                            ),
-                          ],
+              // 1. Upcoming card (k + 2) - lowest Z-index (tucked underneath behind k + 1)
+              if (k + 2 < accounts.length) {
+                stackCards.add(
+                  Positioned(
+                    left: peekWidth,
+                    top: 6,
+                    bottom: 6,
+                    width: cardWidth,
+                    child: Opacity(
+                      opacity: t.clamp(0.0, 1.0),
+                      child: Transform.scale(
+                        scale: 0.94,
+                        alignment: Alignment.centerRight,
+                        child: _buildAccountCardItem(
+                          accounts[k + 2],
+                          k + 2,
+                          hideAmount,
                         ),
                       ),
                     ),
                   ),
+                );
+              }
+
+              // 2. Immediate underneath card (k + 1) - sits physically BEHIND Card k!
+              // Only its right edge peeks out from behind Card k
+              if (k + 1 < accounts.length) {
+                final underneathLeft = (1.0 - t) * peekWidth;
+                final underneathInset = (1.0 - t) * 6.0;
+                final underneathScale = 0.94 + (0.06 * t);
+
+                stackCards.add(
+                  Positioned(
+                    left: underneathLeft,
+                    top: underneathInset,
+                    bottom: underneathInset,
+                    width: cardWidth,
+                    child: Transform.scale(
+                      scale: underneathScale,
+                      alignment: Alignment.centerRight,
+                      child: _buildAccountCardItem(
+                        accounts[k + 1],
+                        k + 1,
+                        hideAmount,
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              // 3. Current active card (k) - ON TOP in Z-order!
+              // Covers Card k + 1 everywhere except the right edge.
+              // When swiping left, it slides away off-screen.
+              if (k < accounts.length) {
+                final frontLeft = -t * (cardWidth + 24.0);
+                final frontOpacity = (1.0 - t * 0.4).clamp(0.0, 1.0);
+
+                stackCards.add(
+                  Positioned(
+                    left: frontLeft,
+                    top: 0,
+                    bottom: 0,
+                    width: cardWidth,
+                    child: Opacity(
+                      opacity: frontOpacity,
+                      child: _buildAccountCardItem(
+                        accounts[k],
+                        k,
+                        hideAmount,
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              // 4. Transparent PageView on top to handle touch, inertia, fling & snapping
+              stackCards.add(
+                Positioned.fill(
+                  child: PageView.builder(
+                    controller: _accountsPageController,
+                    itemCount: accounts.length,
+                    onPageChanged: (idx) {
+                      setState(() {
+                        _accountsPageIndex = idx;
+                      });
+                    },
+                    itemBuilder: (context, index) {
+                      return GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTapUp: (details) {
+                          // Tapping the exposed right edge peeking card advances to next card;
+                          // tapping anywhere on the card opens accounts screen.
+                          if (details.localPosition.dx > totalWidth - 44 &&
+                              _accountsPageIndex < accounts.length - 1) {
+                            _accountsPageController.nextPage(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeOutCubic,
+                            );
+                          } else {
+                            widget.onNavigate('/accounts');
+                          }
+                        },
+                        child: const SizedBox.expand(),
+                      );
+                    },
+                  ),
                 ),
+              );
+
+              return Stack(
+                clipBehavior: Clip.none,
+                children: stackCards,
               );
             },
           ),
@@ -1454,6 +1291,134 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildAccountCardItem(
+    Account account,
+    int index,
+    bool hideAmount,
+  ) {
+    final gradient =
+        _accountCardGradients[index % _accountCardGradients.length];
+    final mask = account.accountNumberMask != null
+        ? '•••• •••• •••• ${account.accountNumberMask}'
+        : '•••• •••• •••• ${index.toString().padLeft(4, '0')}';
+    final badgeLabel = account.type.toUpperCase().replaceAll('_', ' ');
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: gradient,
+        borderRadius: AppStyles.roundedL,
+        boxShadow: [
+          BoxShadow(
+            color: gradient.colors.first.withValues(alpha: 0.35),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      account.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.88),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        CurrencyFormatter.format(
+                          account.balance,
+                          hideAmount: hideAmount,
+                        ),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.22),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  badgeLabel,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Text(
+            mask,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              letterSpacing: 2.0,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    _getAccountTypeIcon(account.type),
+                    color: Colors.white.withValues(alpha: 0.9),
+                    size: 16,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _getAccountTypeDisplayName(account.type),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.85),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+              Icon(
+                Icons.contactless_rounded,
+                color: Colors.white.withValues(alpha: 0.9),
+                size: 18,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
