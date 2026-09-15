@@ -496,6 +496,11 @@ class TransactionRepository {
         .get();
     return rows.map((r) => r.tagId).toList();
   }
+
+  /// Watch all transaction tags mappings
+  Stream<List<TransactionTag>> watchAllTransactionTags() {
+    return _db.select(_db.transactionTags).watch();
+  }
 }
 
 final transactionRepositoryProvider = Provider<TransactionRepository>((ref) {
@@ -519,9 +524,15 @@ final tagsStreamProvider = StreamProvider<List<Tag>>((ref) {
   return ref.watch(transactionRepositoryProvider).watchTags();
 });
 
+final allTransactionTagsStreamProvider =
+    StreamProvider<List<TransactionTag>>((ref) {
+  return ref.watch(transactionRepositoryProvider).watchAllTransactionTags();
+});
+
 final accountTransactionsStreamProvider =
     StreamProvider.family<List<Transaction>, String>((ref, accountId) {
   return ref
       .watch(transactionRepositoryProvider)
       .watchFilteredTransactions(accountId: accountId);
 });
+

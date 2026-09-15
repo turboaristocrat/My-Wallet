@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_styles.dart';
 import '../../../core/database/app_database.dart';
 import '../../accounts/data/account_repository.dart';
 import '../../receipts/data/receipt_scanner_service.dart';
 import '../data/transaction_repository.dart';
-import '../../categories/presentation/manage_categories_dialog.dart';
+import '../../categories/presentation/category_picker_sheet.dart';
 
 class AddTransactionSheet extends ConsumerStatefulWidget {
   final Transaction? initialTransaction;
@@ -25,7 +24,7 @@ class AddTransactionSheet extends ConsumerStatefulWidget {
 }
 
 class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
-  String _type = 'expense'; // 'expense', 'income', 'transfer'
+  String _type = 'expense'; // 'income', 'expense', 'transfer'
   String _amountStr = '0';
   String? _selectedAccountId;
   String? _selectedToAccountId;
@@ -34,11 +33,20 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   final TextEditingController _noteController = TextEditingController();
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _selectedTime = TimeOfDay.now();
-  String _paymentType = 'upi';
+  String _paymentType = 'cash';
   String _status = 'cleared';
   final List<String> _selectedTagIds = [];
   bool _isDetailsOpen = false;
   String? _attachedReceiptSummary;
+
+  // Colors matching media_1789475202193.png
+  static const Color _heroBgLight = Color(0xFF455A64);
+  static const Color _heroBgDark = Color(0xFF263238);
+  static const Color _inactiveTabLight = Color(0xFF37474F);
+  static const Color _inactiveTabDark = Color(0xFF1E272C);
+  static const Color _templatesBg = Color(0xFF546E7A);
+  static const Color _keypadOperatorBgLight = Color(0xFFF8FAFC);
+  static const Color _keypadOperatorBgDark = Color(0xFF1E293B);
 
   @override
   void initState() {
@@ -157,7 +165,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     setState(() {
       if (val == 'C') {
         _amountStr = '0';
-      } else if (val == '⌫') {
+      } else if (val == '⌫' || val == '←') {
         if (_amountStr.length > 1) {
           _amountStr = _amountStr.substring(0, _amountStr.length - 1);
         } else {
@@ -170,19 +178,19 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               ? result.toInt().toString()
               : result.toStringAsFixed(2);
         }
-      } else if (val == '+' || val == '—' || val == '×' || val == '÷') {
+      } else if (val == '+' || val == '-' || val == '—' || val == '*' || val == '÷') {
+        final opChar = val == '—' ? '-' : val;
         final lastChar = _amountStr.isNotEmpty
             ? _amountStr[_amountStr.length - 1]
             : '';
-        if (['+', '—', '×', '÷', '-'].contains(lastChar)) {
+        if (['+', '-', '*', '÷'].contains(lastChar)) {
           _amountStr =
-              _amountStr.substring(0, _amountStr.length - 1) + val;
+              _amountStr.substring(0, _amountStr.length - 1) + opChar;
         } else {
-          _amountStr += val;
+          _amountStr += opChar;
         }
       } else if (val == '.') {
-        // Allow dot if current operand doesn't have one
-        final parts = _amountStr.split(RegExp(r'[\+\—\×\÷\-]'));
+        final parts = _amountStr.split(RegExp(r'[\+\-\*÷]'));
         final currentOperand = parts.isNotEmpty ? parts.last : '';
         if (!currentOperand.contains('.')) {
           _amountStr += '.';
@@ -211,10 +219,10 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           controller: controller,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           autofocus: true,
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
           decoration: const InputDecoration(
             prefixText: '₹ ',
-            labelText: 'Enter amount or expression',
+            labelText: 'Enter amount or math',
             border: OutlineInputBorder(),
           ),
         ),
@@ -273,7 +281,6 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 
   Future<void> _saveTransaction({bool addAnother = false}) async {
-    // If expression is active, evaluate it
     final evaluated = _evaluateExpression(_amountStr);
     final amount = evaluated ?? double.tryParse(_amountStr) ?? 0.0;
 
@@ -327,7 +334,6 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         status: _status,
       );
 
-      // Save tags
       await repo.setTransactionTags(
           widget.initialTransaction!.id, _selectedTagIds);
 
@@ -354,7 +360,6 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         status: _status,
       );
 
-      // Save tags
       if (_selectedTagIds.isNotEmpty) {
         await repo.setTransactionTags(newId, _selectedTagIds);
       }
@@ -378,155 +383,18 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     }
   }
 
-  // --- Category Selector Modal with Subcategories & On-the-fly add ---
-  void _openCategoryPicker(List<Category> allCategories) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        final parents =
-            allCategories.where((c) => c.parentId == null).toList();
-
-        return Container(
-          height: MediaQuery.of(ctx).size.height * 0.75,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.darkCard : Colors.white,
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? AppColors.darkBorder
-                        : AppColors.lightBorder,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Select Category',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: isDark ? Colors.white : AppColors.lightTextPrimary,
-                    ),
-                  ),
-                  TextButton.icon(
-                    onPressed: () {
-                      Navigator.of(ctx).pop();
-                      ManageCategoriesDialog.show(context);
-                    },
-                    icon: const Icon(Icons.add_rounded, size: 18),
-                    label: const Text('+ Add New'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: parents.length,
-                  itemBuilder: (context, i) {
-                    final p = parents[i];
-                    final subs = allCategories
-                        .where((c) => c.parentId == p.id)
-                        .toList();
-                    final color =
-                        Color(int.tryParse(p.colorHex) ?? 0xFF008080);
-
-                    return ExpansionTile(
-                      key: PageStorageKey(p.id),
-                      leading: CircleAvatar(
-                        radius: 16,
-                        backgroundColor: color.withValues(alpha: 0.2),
-                        child: Icon(Icons.category_rounded,
-                            color: color, size: 16),
-                      ),
-                      title: Text(
-                        p.name,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                          color: isDark ? Colors.white : AppColors.lightTextPrimary,
-                        ),
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          TextButton(
-                            onPressed: () {
-                              setState(() => _selectedCategoryId = p.id);
-                              Navigator.of(ctx).pop();
-                            },
-                            child: const Text('Select',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.w700, fontSize: 12)),
-                          ),
-                          const Icon(Icons.expand_more_rounded),
-                        ],
-                      ),
-                      children: subs.map((sub) {
-                        final subColor =
-                            Color(int.tryParse(sub.colorHex) ?? 0xFF3B82F6);
-                        final isSelected = _selectedCategoryId == sub.id;
-
-                        return ListTile(
-                          contentPadding: const EdgeInsets.only(left: 36, right: 16),
-                          leading: CircleAvatar(
-                            radius: 12,
-                            backgroundColor:
-                                subColor.withValues(alpha: 0.2),
-                            child: Icon(Icons.subdirectory_arrow_right_rounded,
-                                color: subColor, size: 14),
-                          ),
-                          title: Text(
-                            sub.name,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: isSelected
-                                  ? FontWeight.w800
-                                  : FontWeight.w600,
-                              color: isSelected
-                                  ? AppColors.primary
-                                  : (isDark
-                                      ? Colors.white
-                                      : AppColors.lightTextPrimary),
-                            ),
-                          ),
-                          trailing: isSelected
-                              ? const Icon(Icons.check_rounded,
-                                  color: AppColors.primary, size: 18)
-                              : null,
-                          onTap: () {
-                            setState(() => _selectedCategoryId = sub.id);
-                            Navigator.of(ctx).pop();
-                          },
-                        );
-                      }).toList(),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+  // --- Category Picker (calls CategoryPickerSheet) ---
+  Future<void> _pickCategory() async {
+    final selected = await CategoryPickerSheet.show(
+      context,
+      initialCategoryId: _selectedCategoryId,
     );
+    if (selected != null && mounted) {
+      setState(() => _selectedCategoryId = selected.id);
+    }
   }
 
-  // --- Quick Add Tag Modal on the fly ---
+  // --- Add Tag Dialog on the fly ---
   void _openAddTagDialog() {
     final nameCtrl = TextEditingController();
     Color selectedColor = const Color(0xFF26B2AB);
@@ -549,15 +417,15 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             backgroundColor: isDark ? AppColors.darkCard : Colors.white,
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Text('New Tag'),
+            title: const Text('New Tag / Label'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: nameCtrl,
                   decoration: const InputDecoration(
-                    labelText: 'Tag Name',
-                    hintText: 'e.g. Travel, Personal, Office',
+                    labelText: 'Label Name',
+                    hintText: 'e.g. Desin, Mom, Trip, Fuel',
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -633,540 +501,769 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       }
     });
 
-    final evaluatedVal = _evaluateExpression(_amountStr);
+    final heroColor = isDark ? _heroBgDark : _heroBgLight;
+    final inactiveTabColor = isDark ? _inactiveTabDark : _inactiveTabLight;
 
     return Scaffold(
-      backgroundColor:
-          isDark ? AppColors.darkBackground : AppColors.lightBackground,
-      appBar: AppBar(
-        backgroundColor: isDark ? AppColors.darkBackground : Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(
-          widget.initialTransaction != null
-              ? 'Edit Transaction'
-              : 'Add Transaction',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: 18,
-            letterSpacing: -0.3,
-            color: isDark ? Colors.white : AppColors.lightTextPrimary,
-          ),
-        ),
-        actions: [
-          if (widget.initialTransaction != null)
-            IconButton(
-              icon: const Icon(Icons.delete_outline_rounded, color: AppColors.expense),
-              tooltip: 'Delete Transaction',
-              onPressed: _deleteTransaction,
-            ),
-          IconButton(
-            icon: const Icon(Icons.check_rounded),
-            color: AppColors.income,
-            onPressed: () => _saveTransaction(),
-          ),
-        ],
-      ),
-      body: GestureDetector(
-        // Swipe left to open details, swipe right to close details
-        onHorizontalDragEnd: (details) {
-          if (details.primaryVelocity != null) {
-            if (details.primaryVelocity! < -250 && !_isDetailsOpen) {
-              setState(() => _isDetailsOpen = true);
-            } else if (details.primaryVelocity! > 250 && _isDetailsOpen) {
-              setState(() => _isDetailsOpen = false);
+      backgroundColor: isDark ? AppColors.darkBackground : Colors.white,
+      body: SafeArea(
+        child: GestureDetector(
+          onHorizontalDragEnd: (details) {
+            if (details.primaryVelocity != null) {
+              if (details.primaryVelocity! < -250 && !_isDetailsOpen) {
+                setState(() => _isDetailsOpen = true);
+              } else if (details.primaryVelocity! > 250 && _isDetailsOpen) {
+                setState(() => _isDetailsOpen = false);
+              }
             }
-          }
-        },
-        child: Stack(
-          children: [
-            // MAIN VIEW: Tabs, Slate Blue Hero Canvas, and 4-Column Calculator Numpad
-            Column(
-              children: [
-                // Top Segmented Type Selector (INCOME | EXPENSE | TRANSFER)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkSurface : AppColors.lightBorder,
-                      borderRadius: BorderRadius.circular(24),
-                    ),
+          },
+          child: Stack(
+            children: [
+              // ==========================================
+              // VIEW 1: HERO CANVAS & CALCULATOR KEYPAD
+              // ==========================================
+              Column(
+                children: [
+                  // Top App Bar
+                  Container(
+                    color: inactiveTabColor,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        _buildTypeTab('income', 'INCOME', AppColors.income),
-                        _buildTypeTab('expense', 'EXPENSE', AppColors.expense),
-                        _buildTypeTab('transfer', 'TRANSFER', AppColors.transfer),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, color: Colors.white, size: 26),
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
+                        if (widget.initialTransaction != null)
+                          Text(
+                            'Edit Transaction',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                            ),
+                          ),
+                        IconButton(
+                          icon: const Icon(Icons.check_rounded, color: Colors.white, size: 26),
+                          onPressed: () => _saveTransaction(),
+                        ),
                       ],
                     ),
                   ),
-                ),
 
-                // SLATE BLUE HERO CANVAS (Matching media_1789471147550.png)
-                Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? const Color(0xFF2C3E50)
-                        : const Color(0xFF455A64),
-                    borderRadius: AppStyles.roundedL,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.25),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
+                  // Segmented Tabs (INCOME | EXPENSE | TRANSFER)
+                  Container(
+                    color: inactiveTabColor,
+                    child: Row(
+                      children: [
+                        _buildTopTab('income', 'INCOME', heroColor, inactiveTabColor),
+                        _buildTopTab('expense', 'EXPENSE', heroColor, inactiveTabColor),
+                        _buildTopTab('transfer', 'TRANSFER', heroColor, inactiveTabColor),
+                      ],
+                    ),
                   ),
-                  child: Stack(
-                    children: [
-                      // Curved Pull-Tab on the right edge
-                      Positioned(
-                        right: 0,
-                        top: 24,
-                        bottom: 24,
-                        child: GestureDetector(
-                          onTap: () => setState(() => _isDetailsOpen = true),
-                          child: Container(
-                            width: 28,
-                            decoration: BoxDecoration(
-                              color: isDark ? Colors.grey[800] : Colors.white,
-                              borderRadius: const BorderRadius.only(
-                                topLeft: Radius.circular(16),
-                                bottomLeft: Radius.circular(16),
-                              ),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Colors.black26,
-                                  blurRadius: 4,
-                                  offset: Offset(-1, 2),
+
+                  // Slate Blue Hero Canvas (media_1789475202193.png)
+                  Expanded(
+                    flex: 4,
+                    child: Container(
+                      width: double.infinity,
+                      color: heroColor,
+                      child: Stack(
+                        children: [
+                          // Curved White Pull-Tab on Right Edge
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            bottom: 0,
+                            child: Center(
+                              child: GestureDetector(
+                                onTap: () => setState(() => _isDetailsOpen = true),
+                                child: Container(
+                                  width: 26,
+                                  height: 64,
+                                  decoration: const BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.only(
+                                      topLeft: Radius.circular(32),
+                                      bottomLeft: Radius.circular(32),
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black26,
+                                        blurRadius: 6,
+                                        offset: Offset(-2, 1),
+                                      ),
+                                    ],
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: const Icon(
+                                    Icons.chevron_left_rounded,
+                                    size: 22,
+                                    color: Color(0xFF455A64),
+                                  ),
                                 ),
-                              ],
-                            ),
-                            alignment: Alignment.center,
-                            child: Icon(
-                              Icons.chevron_left_rounded,
-                              size: 24,
-                              color: isDark ? Colors.white : const Color(0xFF455A64),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
 
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 16, 32, 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Sign indicator & Editable Amount
-                            GestureDetector(
-                              onTap: _showDirectAmountEditor,
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  // Left symbol: — for expense, + for income, ⇄ for transfer
-                                  Text(
-                                    _type == 'expense'
-                                        ? '—'
-                                        : (_type == 'income' ? '+' : '⇄'),
-                                    style: const TextStyle(
-                                      fontSize: 36,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-
-                                  // Amount Display
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        FittedBox(
-                                          fit: BoxFit.scaleDown,
-                                          alignment: Alignment.centerLeft,
-                                          child: Text(
-                                            _amountStr,
-                                            style: const TextStyle(
-                                              fontSize: 42,
-                                              fontWeight: FontWeight.w800,
-                                              color: Colors.white,
-                                              letterSpacing: -0.5,
-                                            ),
-                                          ),
-                                        ),
-                                        if (evaluatedVal != null &&
-                                            _amountStr.contains(RegExp(r'[\+\—\×\÷\-]')))
-                                          Text(
-                                            '= ₹ ${evaluatedVal.toStringAsFixed(2)}',
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.white70,
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-
-                                  // Currency Label
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.18),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: const Text(
-                                      'INR',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-
-                            // Inside Hero: Source Account + Category / Target Account
-                            Row(
+                          // Center Content
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(28, 16, 36, 16),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                // Source Account Dropdown
-                                Expanded(
-                                  child: accountsAsync.when(
-                                    data: (accounts) => Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withValues(alpha: 0.22),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                            color: Colors.white.withValues(alpha: 0.2)),
-                                      ),
-                                      child: DropdownButtonHideUnderline(
-                                        child: DropdownButton<String>(
-                                          value: _selectedAccountId,
-                                          dropdownColor: const Color(0xFF37474F),
-                                          icon: const Icon(
-                                              Icons.arrow_drop_down_rounded,
-                                              color: Colors.white),
-                                          style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 12),
-                                          isExpanded: true,
-                                          items: accounts.map((a) {
-                                            return DropdownMenuItem(
-                                              value: a.id,
-                                              child: Text(
-                                                'Account: ${a.name}',
-                                                overflow: TextOverflow.ellipsis,
-                                                style: const TextStyle(color: Colors.white),
-                                              ),
-                                            );
-                                          }).toList(),
-                                          onChanged: (val) =>
-                                              setState(() => _selectedAccountId = val),
+                                const SizedBox(height: 10),
+
+                                // Left sign + Big Amount + Currency (media_1789475202193.png)
+                                GestureDetector(
+                                  onTap: _showDirectAmountEditor,
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        _type == 'expense'
+                                            ? '—'
+                                            : (_type == 'income' ? '+' : '⇄'),
+                                        style: const TextStyle(
+                                          fontSize: 48,
+                                          fontWeight: FontWeight.w300,
+                                          color: Colors.white,
                                         ),
                                       ),
-                                    ),
-                                    loading: () => const SizedBox(),
-                                    error: (_, _) => const SizedBox(),
+                                      const Spacer(),
+                                      FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: Text(
+                                          _amountStr,
+                                          style: const TextStyle(
+                                            fontSize: 72,
+                                            fontWeight: FontWeight.w200,
+                                            color: Colors.white,
+                                            letterSpacing: -1,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      const Text(
+                                        'INR',
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontWeight: FontWeight.w400,
+                                          fontSize: 24,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                const SizedBox(width: 8),
 
-                                // Category or Target Account Dropdown
-                                Expanded(
-                                  child: _type == 'transfer'
-                                      ? accountsAsync.when(
-                                          data: (accounts) => Container(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 10, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: Colors.black
-                                                  .withValues(alpha: 0.22),
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                              border: Border.all(
-                                                  color: Colors.white
-                                                      .withValues(alpha: 0.2)),
-                                            ),
-                                            child: DropdownButtonHideUnderline(
-                                              child: DropdownButton<String>(
-                                                value: _selectedToAccountId,
-                                                hint: const Text('To Account',
-                                                    style: TextStyle(
-                                                        color: Colors.white70,
-                                                        fontSize: 12)),
-                                                dropdownColor:
-                                                    const Color(0xFF37474F),
-                                                icon: const Icon(
-                                                    Icons.arrow_drop_down_rounded,
-                                                    color: Colors.white),
+                                const SizedBox(height: 10),
+
+                                // Bottom Row: Account on left, Category on right
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    // Account Selector
+                                    accountsAsync.when(
+                                      data: (accounts) {
+                                        final currentAcc = accounts
+                                            .where((a) => a.id == _selectedAccountId)
+                                            .firstOrNull;
+                                        return PopupMenuButton<String>(
+                                          onSelected: (val) =>
+                                              setState(() => _selectedAccountId = val),
+                                          itemBuilder: (_) => accounts.map((a) {
+                                            return PopupMenuItem(
+                                              value: a.id,
+                                              child: Text(a.name),
+                                            );
+                                          }).toList(),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              const Text(
+                                                'Account',
+                                                style: TextStyle(
+                                                  color: Colors.white60,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                              Text(
+                                                currentAcc?.name.toUpperCase() ??
+                                                    'CASH',
                                                 style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontWeight: FontWeight.w700,
-                                                    fontSize: 12),
-                                                isExpanded: true,
-                                                items: accounts.map((a) {
-                                                  return DropdownMenuItem(
+                                                  color: Colors.white,
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                      loading: () => const SizedBox(),
+                                      error: (_, _) => const SizedBox(),
+                                    ),
+
+                                    // Category or Target Account Selector
+                                    _type == 'transfer'
+                                        ? accountsAsync.when(
+                                            data: (accounts) {
+                                              final targetAcc = accounts
+                                                  .where((a) =>
+                                                      a.id == _selectedToAccountId)
+                                                  .firstOrNull;
+                                              return PopupMenuButton<String>(
+                                                onSelected: (val) => setState(
+                                                    () => _selectedToAccountId = val),
+                                                itemBuilder: (_) => accounts
+                                                    .where((a) =>
+                                                        a.id != _selectedAccountId)
+                                                    .map((a) {
+                                                  return PopupMenuItem(
                                                     value: a.id,
-                                                    child: Text(a.name,
-                                                        style: const TextStyle(
-                                                            color: Colors.white)),
+                                                    child: Text(a.name),
                                                   );
                                                 }).toList(),
-                                                onChanged: (val) => setState(
-                                                    () => _selectedToAccountId = val),
-                                              ),
-                                            ),
-                                          ),
-                                          loading: () => const SizedBox(),
-                                          error: (_, _) => const SizedBox(),
-                                        )
-                                      : categoriesAsync.when(
-                                          data: (categories) {
-                                            final selectedCat =
-                                                categories.where((c) => c.id == _selectedCategoryId).firstOrNull;
-                                            return InkWell(
-                                              onTap: () =>
-                                                  _openCategoryPicker(categories),
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                              child: Container(
-                                                padding: const EdgeInsets.symmetric(
-                                                    horizontal: 10, vertical: 8),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.black
-                                                      .withValues(alpha: 0.22),
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
-                                                  border: Border.all(
-                                                      color: Colors.white
-                                                          .withValues(alpha: 0.2)),
-                                                ),
-                                                child: Row(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.end,
                                                   children: [
-                                                    Expanded(
-                                                      child: Text(
-                                                        selectedCat != null
-                                                            ? 'Category: ${selectedCat.name}'
-                                                            : 'SELECT CATEGORY',
-                                                        style: const TextStyle(
-                                                          color: Colors.white,
-                                                          fontSize: 11,
-                                                          fontWeight: FontWeight.w700,
-                                                        ),
-                                                        overflow:
-                                                            TextOverflow.ellipsis,
+                                                    const Text(
+                                                      'To Account',
+                                                      style: TextStyle(
+                                                        color: Colors.white60,
+                                                        fontSize: 12,
+                                                        fontWeight: FontWeight.w500,
                                                       ),
                                                     ),
-                                                    const Icon(
-                                                      Icons.arrow_drop_down_rounded,
-                                                      color: Colors.white,
-                                                      size: 18,
+                                                    Text(
+                                                      targetAcc?.name.toUpperCase() ??
+                                                          'SELECT TARGET',
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 15,
+                                                        fontWeight: FontWeight.w700,
+                                                      ),
                                                     ),
                                                   ],
                                                 ),
-                                              ),
-                                            );
-                                          },
-                                          loading: () => const SizedBox(),
-                                          error: (_, _) => const SizedBox(),
-                                        ),
+                                              );
+                                            },
+                                            loading: () => const SizedBox(),
+                                            error: (_, _) => const SizedBox(),
+                                          )
+                                        : categoriesAsync.when(
+                                            data: (categories) {
+                                              final cat = categories
+                                                  .where((c) =>
+                                                      c.id == _selectedCategoryId)
+                                                  .firstOrNull;
+                                              return GestureDetector(
+                                                onTap: _pickCategory,
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.end,
+                                                  children: [
+                                                    const Text(
+                                                      'Category',
+                                                      style: TextStyle(
+                                                        color: Colors.white60,
+                                                        fontSize: 12,
+                                                        fontWeight: FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                    Text(
+                                                      cat?.name.toUpperCase() ??
+                                                          'SELECT CATEGORY',
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 15,
+                                                        fontWeight: FontWeight.w700,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                            },
+                                            loading: () => const SizedBox(),
+                                            error: (_, _) => const SizedBox(),
+                                          ),
+                                  ],
                                 ),
                               ],
                             ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Quick templates strip
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    children: [
-                      Text(
-                        'QUICK ADD',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                          color: isDark
-                              ? AppColors.darkTextSecondary
-                              : AppColors.lightTextSecondary,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: ['+50', '+100', '+500', '+1000', '+2000'].map((chip) {
-                              return Padding(
-                                padding: const EdgeInsets.only(right: 6),
-                                child: InkWell(
-                                  onTap: () {
-                                    final addVal = double.tryParse(chip.substring(1)) ?? 0;
-                                    final cur = double.tryParse(_amountStr) ?? 0;
-                                    setState(() {
-                                      _amountStr = (cur + addVal).toStringAsFixed(0);
-                                    });
-                                  },
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: isDark
-                                          ? AppColors.darkSurface
-                                          : AppColors.lightBorder.withValues(alpha: 0.5),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: isDark
-                                            ? AppColors.darkBorder
-                                            : AppColors.lightBorder,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      chip,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        color: isDark
-                                            ? AppColors.darkTextPrimary
-                                            : AppColors.lightTextPrimary,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }).toList(),
                           ),
-                        ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
 
-                // 4-COLUMN CALCULATOR NUMPAD (with ÷, ×, —, +, =)
-                Expanded(
-                  child: _buildCalculatorNumpad(isDark),
-                ),
-              ],
-            ),
+                  // TEMPLATES Banner Strip (media_1789475202193.png)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    color: _templatesBg,
+                    alignment: Alignment.center,
+                    child: const Text(
+                      'TEMPLATES',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
 
-            // SLIDE-IN "ADD DETAILS" PANEL (Opens on `<` tap or swipe left)
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 280),
-              curve: Curves.easeOutCubic,
-              top: 0,
-              bottom: 0,
-              left: _isDetailsOpen ? 0 : MediaQuery.of(context).size.width,
-              right: _isDetailsOpen ? 0 : -MediaQuery.of(context).size.width,
-              child: Material(
-                elevation: 16,
-                color: isDark ? AppColors.darkCard : Colors.white,
-                child: SafeArea(
+                  // 4-COLUMN CALCULATOR KEYPAD (media_1789475202193.png)
+                  Expanded(
+                    flex: 5,
+                    child: _buildCleanKeypad(isDark),
+                  ),
+                ],
+              ),
+
+              // ==========================================
+              // VIEW 2: SLIDE-IN "ADD DETAILS" PANEL
+              // (Matching media_1789475215918.png)
+              // ==========================================
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 280),
+                curve: Curves.easeOutCubic,
+                top: 0,
+                bottom: 0,
+                left: _isDetailsOpen ? 0 : MediaQuery.of(context).size.width,
+                right: _isDetailsOpen ? 0 : -MediaQuery.of(context).size.width,
+                child: Material(
+                  color: isDark ? AppColors.darkCard : Colors.white,
                   child: Column(
                     children: [
-                      // Details Panel Header with Back Button
+                      // Top Bar matching media_1789475215918.png
                       Container(
+                        color: heroColor,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(
-                              color: isDark
-                                  ? AppColors.darkBorder
-                                  : AppColors.lightBorder,
-                            ),
-                          ),
-                        ),
+                            horizontal: 8, vertical: 6),
                         child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.arrow_back_ios_rounded),
+                              icon: const Icon(Icons.arrow_back_rounded,
+                                  color: Colors.white, size: 24),
                               onPressed: () =>
                                   setState(() => _isDetailsOpen = false),
                             ),
-                            const Text(
-                              'Transaction Details',
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w800,
+                            Text(
+                              '₹$_amountStr',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                            const Spacer(),
                             IconButton(
                               icon: const Icon(Icons.check_rounded,
-                                  color: AppColors.income),
+                                  color: Colors.white, size: 24),
                               onPressed: () => _saveTransaction(),
                             ),
                           ],
                         ),
                       ),
 
-                      // Details Form Scrollable Content
+                      // Details List
                       Expanded(
-                        child: _buildDetailsContent(
-                            isDark, categoriesAsync, tagsAsync),
+                        child: ListView(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 14),
+                          children: [
+                            // 1. Note
+                            const Text(
+                              'Note',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                            TextField(
+                              controller: _noteController,
+                              style: TextStyle(
+                                  color: isDark
+                                      ? Colors.white
+                                      : AppColors.lightTextPrimary),
+                              decoration: const InputDecoration(
+                                hintText: 'Description',
+                                hintStyle: TextStyle(color: Colors.grey),
+                                border: UnderlineInputBorder(
+                                  borderSide: BorderSide(color: Colors.black12),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+
+                            // 2. Labels
+                            const Text(
+                              'Labels',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 8),
+                            tagsAsync.when(
+                              data: (tags) {
+                                return Wrap(
+                                  spacing: 8,
+                                  runSpacing: 6,
+                                  children: [
+                                    OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(20)),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 6),
+                                        side: const BorderSide(
+                                            color: Colors.black26),
+                                      ),
+                                      onPressed: _openAddTagDialog,
+                                      icon: const Icon(
+                                          Icons.add_circle_rounded,
+                                          color: Colors.blue,
+                                          size: 18),
+                                      label: const Text('Add label',
+                                          style: TextStyle(
+                                              fontSize: 13,
+                                              color: Colors.black87)),
+                                    ),
+                                    ...tags.map((tag) {
+                                      final isSelected =
+                                          _selectedTagIds.contains(tag.id);
+                                      final color = Color(
+                                          int.tryParse(tag.colorHex) ??
+                                              0xFF26B2AB);
+
+                                      return FilterChip(
+                                        label: Text(tag.name),
+                                        selected: isSelected,
+                                        selectedColor:
+                                            color.withValues(alpha: 0.3),
+                                        checkmarkColor: color,
+                                        labelStyle: TextStyle(
+                                          fontSize: 12,
+                                          color: isSelected
+                                              ? color
+                                              : (isDark
+                                                  ? Colors.white70
+                                                  : Colors.black87),
+                                        ),
+                                        onSelected: (val) {
+                                          setState(() {
+                                            if (val) {
+                                              _selectedTagIds.add(tag.id);
+                                            } else {
+                                              _selectedTagIds.remove(tag.id);
+                                            }
+                                          });
+                                        },
+                                      );
+                                    }),
+                                  ],
+                                );
+                              },
+                              loading: () => const SizedBox(),
+                              error: (_, _) => const SizedBox(),
+                            ),
+                            const SizedBox(height: 18),
+
+                            // 3. Payee
+                            const Text(
+                              'Payee',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                            TextField(
+                              controller: _payeeController,
+                              style: TextStyle(
+                                  color: isDark
+                                      ? Colors.white
+                                      : AppColors.lightTextPrimary),
+                              decoration: const InputDecoration(
+                                hintText: 'Enter payee or merchant',
+                                hintStyle: TextStyle(color: Colors.grey),
+                                border: UnderlineInputBorder(
+                                  borderSide: BorderSide(color: Colors.black12),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+
+                            // 4. Date & Time side by side
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Date',
+                                        style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.grey,
+                                            fontWeight: FontWeight.w600),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      InkWell(
+                                        onTap: () async {
+                                          final d = await showDatePicker(
+                                            context: context,
+                                            initialDate: _selectedDate,
+                                            firstDate: DateTime(2020),
+                                            lastDate: DateTime(2030),
+                                          );
+                                          if (d != null) {
+                                            setState(() => _selectedDate = d);
+                                          }
+                                        },
+                                        child: Row(
+                                          children: [
+                                            Text(
+                                              DateFormat('d MMM yyyy')
+                                                  .format(_selectedDate),
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            const Icon(
+                                                Icons.arrow_drop_down_rounded,
+                                                color: Colors.grey),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Time',
+                                        style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.grey,
+                                            fontWeight: FontWeight.w600),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      InkWell(
+                                        onTap: () async {
+                                          final t = await showTimePicker(
+                                            context: context,
+                                            initialTime: _selectedTime,
+                                          );
+                                          if (t != null) {
+                                            setState(() => _selectedTime = t);
+                                          }
+                                        },
+                                        child: Row(
+                                          children: [
+                                            Text(
+                                              _selectedTime.format(context),
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            const Icon(
+                                                Icons.arrow_drop_down_rounded,
+                                                color: Colors.grey),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 18),
+
+                            // 5. Payment Type
+                            const Text(
+                              'Payment Type',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                            DropdownButton<String>(
+                              value: _paymentType,
+                              isExpanded: true,
+                              underline: Container(
+                                  height: 1, color: Colors.black12),
+                              items: const [
+                                DropdownMenuItem(
+                                    value: 'cash', child: Text('Cash')),
+                                DropdownMenuItem(
+                                    value: 'upi',
+                                    child: Text('UPI / Online')),
+                                DropdownMenuItem(
+                                    value: 'card',
+                                    child: Text('Debit / Credit Card')),
+                                DropdownMenuItem(
+                                    value: 'net_banking',
+                                    child: Text('Net Banking')),
+                              ],
+                              onChanged: (val) =>
+                                  setState(() => _paymentType = val!),
+                            ),
+                            const SizedBox(height: 18),
+
+                            // 6. Status
+                            const Text(
+                              'Status',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                            DropdownButton<String>(
+                              value: _status,
+                              isExpanded: true,
+                              underline: Container(
+                                  height: 1, color: Colors.black12),
+                              items: const [
+                                DropdownMenuItem(
+                                    value: 'cleared',
+                                    child: Text('Cleared')),
+                                DropdownMenuItem(
+                                    value: 'pending',
+                                    child: Text('Pending')),
+                                DropdownMenuItem(
+                                    value: 'reconciled',
+                                    child: Text('Reconciled')),
+                              ],
+                              onChanged: (val) =>
+                                  setState(() => _status = val!),
+                            ),
+                            const SizedBox(height: 18),
+
+                            // 7. Attachments
+                            const Text(
+                              'Attachments',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 8),
+                            if (_attachedReceiptSummary != null)
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: AppColors.incomeGreen
+                                      .withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.receipt_long_rounded,
+                                        color: AppColors.incomeGreen),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                        child: Text(_attachedReceiptSummary!)),
+                                    IconButton(
+                                      icon: const Icon(Icons.close, size: 18),
+                                      onPressed: () => setState(
+                                          () => _attachedReceiptSummary = null),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else
+                              OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(20)),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 8),
+                                  side: const BorderSide(color: Colors.black26),
+                                ),
+                                onPressed: () =>
+                                    _openReceiptScannerDialog(context),
+                                icon: const Icon(Icons.add_circle_rounded,
+                                    color: Colors.blue, size: 18),
+                                label: const Text('Add receipt',
+                                    style: TextStyle(
+                                        fontSize: 13, color: Colors.black87)),
+                              ),
+
+                            if (widget.initialTransaction != null) ...[
+                              const SizedBox(height: 32),
+                              OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.expense,
+                                  side: const BorderSide(
+                                      color: AppColors.expense),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12)),
+                                ),
+                                onPressed: _deleteTransaction,
+                                icon: const Icon(
+                                    Icons.delete_outline_rounded,
+                                    size: 18),
+                                label: const Text('Delete Transaction',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.w700)),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // Segmented Type Tab Button
-  Widget _buildTypeTab(String typeVal, String label, Color activeAccent) {
+  // --- Top Tab Segment Button ---
+  Widget _buildTopTab(
+    String typeVal,
+    String label,
+    Color activeBg,
+    Color inactiveBg,
+  ) {
     final isSelected = _type == typeVal;
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() => _type = typeVal),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: activeAccent.withValues(alpha: 0.3),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
-          ),
+        child: Container(
+          color: isSelected ? activeBg : inactiveBg,
+          padding: const EdgeInsets.symmetric(vertical: 12),
           alignment: Alignment.center,
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 13,
               fontWeight: FontWeight.w800,
-              letterSpacing: 0.4,
-              color: isSelected ? activeAccent : Colors.grey[600],
+              letterSpacing: 0.5,
+              color: isSelected ? Colors.white : Colors.white60,
             ),
           ),
         ),
@@ -1174,84 +1271,79 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     );
   }
 
-  // 4-Column Calculator Keypad
-  Widget _buildCalculatorNumpad(bool isDark) {
-    final rows = [
-      ['7', '8', '9', '÷'],
-      ['4', '5', '6', '×'],
-      ['1', '2', '3', '—'],
-      ['.', '0', '⌫', '+'],
-      ['C', '00', '=', '✓'],
+  // --- Clean Keypad (media_1789475202193.png) ---
+  Widget _buildCleanKeypad(bool isDark) {
+    // 4 Columns:
+    // Left 3 columns:
+    // [7, 8, 9]
+    // [4, 5, 6]
+    // [1, 2, 3]
+    // [., 0, ⌫]
+    // Right 4th column (shaded background):
+    // [÷, *, -, +, =]
+    final leftRows = [
+      ['7', '8', '9'],
+      ['4', '5', '6'],
+      ['1', '2', '3'],
+      ['.', '0', '⌫'],
     ];
+    final operators = ['÷', '*', '-', '+', '='];
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 2, 14, 14),
-      child: Column(
-        children: rows.map((row) {
-          return Expanded(
-            child: Row(
-              children: row.map((val) {
-                final isOp = ['÷', '×', '—', '+', '='].contains(val);
-                final isSave = val == '✓';
-                final isClear = val == 'C' || val == '⌫';
+    final opBg = isDark ? _keypadOperatorBgDark : _keypadOperatorBgLight;
 
-                Color btnBg;
-                Color textColor;
-
-                if (isSave) {
-                  btnBg = AppColors.primary;
-                  textColor = Colors.white;
-                } else if (isOp) {
-                  btnBg = isDark
-                      ? const Color(0xFF1E293B)
-                      : const Color(0xFFE2E8F0);
-                  textColor = AppColors.primary;
-                } else if (isClear) {
-                  btnBg = isDark
-                      ? AppColors.darkSurface
-                      : AppColors.expenseContainer.withValues(alpha: 0.3);
-                  textColor = AppColors.expense;
-                } else {
-                  btnBg = isDark ? AppColors.darkCard : Colors.white;
-                  textColor =
-                      isDark ? Colors.white : AppColors.lightTextPrimary;
-                }
-
-                return Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(4.0),
-                    child: InkWell(
-                      onTap: () {
-                        if (isSave) {
-                          _saveTransaction();
-                        } else {
-                          _onNumpadPress(val);
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: btnBg,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: isSave
-                                ? Colors.transparent
-                                : (isDark
-                                    ? AppColors.darkBorder
-                                    : AppColors.lightBorder),
+    return Row(
+      children: [
+        // Digits (3 columns)
+        Expanded(
+          flex: 3,
+          child: Column(
+            children: leftRows.map((row) {
+              return Expanded(
+                child: Row(
+                  children: row.map((val) {
+                    return Expanded(
+                      child: InkWell(
+                        onTap: () => _onNumpadPress(val),
+                        child: Center(
+                          child: Text(
+                            val == '⌫' ? '←' : val,
+                            style: TextStyle(
+                              fontSize: val == '⌫' ? 24 : 32,
+                              fontWeight: FontWeight.w300,
+                              color: isDark
+                                  ? Colors.white
+                                  : const Color(0xFF334155),
+                            ),
                           ),
-                          boxShadow: isSave
-                              ? AppStyles.heroGlowShadow
-                              : AppStyles.softShadow,
                         ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          val,
-                          style: TextStyle(
-                            fontSize: isOp ? 22 : 20,
-                            fontWeight: FontWeight.w700,
-                            color: textColor,
-                          ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+
+        // Operators (1 shaded column)
+        Expanded(
+          flex: 1,
+          child: Container(
+            color: opBg,
+            child: Column(
+              children: operators.map((op) {
+                return Expanded(
+                  child: InkWell(
+                    onTap: () => _onNumpadPress(op),
+                    child: Center(
+                      child: Text(
+                        op,
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w400,
+                          color: isDark
+                              ? Colors.white70
+                              : const Color(0xFF64748B),
                         ),
                       ),
                     ),
@@ -1259,426 +1351,13 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 );
               }).toList(),
             ),
-          );
-        }).toList(),
-      ),
+          ),
+        ),
+      ],
     );
   }
 
-  // Details Content Form
-  Widget _buildDetailsContent(
-    bool isDark,
-    AsyncValue<List<Category>> categoriesAsync,
-    AsyncValue<List<Tag>> tagsAsync,
-  ) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Payee / Merchant
-          TextField(
-            controller: _payeeController,
-            style: TextStyle(
-                color: isDark ? Colors.white : AppColors.lightTextPrimary),
-            decoration: InputDecoration(
-              labelText: 'Payee / Merchant',
-              hintText: 'e.g. Swiggy, Starbucks, Uber, Rent',
-              prefixIcon: const Icon(Icons.store_rounded, size: 20),
-              filled: true,
-              fillColor: isDark ? AppColors.darkSurface : AppColors.lightBackground,
-              border: OutlineInputBorder(borderRadius: AppStyles.roundedM),
-            ),
-          ),
-          const SizedBox(height: 14),
-
-          // Category & Subcategory selection chip
-          categoriesAsync.when(
-            data: (cats) {
-              final selectedCat =
-                  cats.where((c) => c.id == _selectedCategoryId).firstOrNull;
-              Category? parentCat;
-              if (selectedCat != null && selectedCat.parentId != null) {
-                parentCat =
-                    cats.where((c) => c.id == selectedCat.parentId).firstOrNull;
-              }
-
-              return InkWell(
-                onTap: () => _openCategoryPicker(cats),
-                borderRadius: AppStyles.roundedM,
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: isDark ? AppColors.darkSurface : AppColors.lightBackground,
-                    borderRadius: AppStyles.roundedM,
-                    border: Border.all(
-                      color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.category_rounded,
-                          size: 20, color: AppColors.primary),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Category & Subcategory',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: isDark
-                                    ? AppColors.darkTextSecondary
-                                    : AppColors.lightTextSecondary,
-                              ),
-                            ),
-                            Text(
-                              selectedCat != null
-                                  ? (parentCat != null
-                                      ? '${parentCat.name} › ${selectedCat.name}'
-                                      : selectedCat.name)
-                                  : 'Tap to select category',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: isDark
-                                    ? Colors.white
-                                    : AppColors.lightTextPrimary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(Icons.chevron_right_rounded),
-                    ],
-                  ),
-                ),
-              );
-            },
-            loading: () => const SizedBox(),
-            error: (_, _) => const SizedBox(),
-          ),
-          const SizedBox(height: 16),
-
-          // Tags Selection with "+ Add Tag"
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Tags',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: isDark
-                      ? AppColors.darkTextSecondary
-                      : AppColors.lightTextSecondary,
-                ),
-              ),
-              InkWell(
-                onTap: _openAddTagDialog,
-                child: const Text(
-                  '+ New Tag',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          tagsAsync.when(
-            data: (allTags) {
-              return Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  ...allTags.map((tag) {
-                    final isSelected = _selectedTagIds.contains(tag.id);
-                    final tagColor =
-                        Color(int.tryParse(tag.colorHex) ?? 0xFF26B2AB);
-
-                    return FilterChip(
-                      label: Text('#${tag.name}'),
-                      selected: isSelected,
-                      selectedColor: tagColor.withValues(alpha: 0.25),
-                      checkmarkColor: tagColor,
-                      labelStyle: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: isSelected
-                            ? tagColor
-                            : (isDark
-                                ? AppColors.darkTextSecondary
-                                : AppColors.lightTextSecondary),
-                      ),
-                      onSelected: (val) {
-                        setState(() {
-                          if (val) {
-                            _selectedTagIds.add(tag.id);
-                          } else {
-                            _selectedTagIds.remove(tag.id);
-                          }
-                        });
-                      },
-                    );
-                  }),
-                  ActionChip(
-                    avatar: const Icon(Icons.add_rounded, size: 16),
-                    label: const Text('Add Tag'),
-                    onPressed: _openAddTagDialog,
-                  ),
-                ],
-              );
-            },
-            loading: () => const SizedBox(),
-            error: (_, _) => const SizedBox(),
-          ),
-          const SizedBox(height: 16),
-
-          // Date & Time pickers
-          Row(
-            children: [
-              Expanded(
-                child: InkWell(
-                  onTap: () async {
-                    final d = await showDatePicker(
-                      context: context,
-                      initialDate: _selectedDate,
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime(2030),
-                    );
-                    if (d != null) setState(() => _selectedDate = d);
-                  },
-                  borderRadius: AppStyles.roundedM,
-                  child: InputDecorator(
-                    decoration: InputDecoration(
-                      labelText: 'Date',
-                      filled: true,
-                      fillColor: isDark
-                          ? AppColors.darkSurface
-                          : AppColors.lightBackground,
-                      border: OutlineInputBorder(borderRadius: AppStyles.roundedM),
-                      prefixIcon: const Icon(Icons.calendar_today_rounded, size: 18),
-                    ),
-                    child: Text(
-                      DateFormat('dd MMM yyyy').format(_selectedDate),
-                      style: TextStyle(
-                        color: isDark ? Colors.white : AppColors.lightTextPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: InkWell(
-                  onTap: () async {
-                    final t = await showTimePicker(
-                      context: context,
-                      initialTime: _selectedTime,
-                    );
-                    if (t != null) setState(() => _selectedTime = t);
-                  },
-                  borderRadius: AppStyles.roundedM,
-                  child: InputDecorator(
-                    decoration: InputDecoration(
-                      labelText: 'Time',
-                      filled: true,
-                      fillColor: isDark
-                          ? AppColors.darkSurface
-                          : AppColors.lightBackground,
-                      border: OutlineInputBorder(borderRadius: AppStyles.roundedM),
-                      prefixIcon: const Icon(Icons.access_time_rounded, size: 18),
-                    ),
-                    child: Text(
-                      _selectedTime.format(context),
-                      style: TextStyle(
-                        color: isDark ? Colors.white : AppColors.lightTextPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // Payment Mode Dropdown
-          DropdownButtonFormField<String>(
-            initialValue: _paymentType,
-            dropdownColor: isDark ? AppColors.darkCard : Colors.white,
-            style: TextStyle(
-              color: isDark ? Colors.white : AppColors.lightTextPrimary,
-              fontWeight: FontWeight.w600,
-            ),
-            decoration: InputDecoration(
-              labelText: 'Payment Mode',
-              prefixIcon: const Icon(Icons.payment_rounded, size: 20),
-              filled: true,
-              fillColor: isDark ? AppColors.darkSurface : AppColors.lightBackground,
-              border: OutlineInputBorder(borderRadius: AppStyles.roundedM),
-            ),
-            items: const [
-              DropdownMenuItem(
-                  value: 'upi',
-                  child: Text('UPI (Google Pay, PhonePe, Paytm)')),
-              DropdownMenuItem(
-                  value: 'card', child: Text('Debit / Credit Card')),
-              DropdownMenuItem(value: 'cash', child: Text('Cash')),
-              DropdownMenuItem(
-                  value: 'net_banking', child: Text('Net Banking')),
-            ],
-            onChanged: (val) => setState(() => _paymentType = val!),
-          ),
-          const SizedBox(height: 14),
-
-          // Note
-          TextField(
-            controller: _noteController,
-            style: TextStyle(
-              color: isDark ? Colors.white : AppColors.lightTextPrimary,
-            ),
-            decoration: InputDecoration(
-              labelText: 'Note',
-              hintText: 'Add an optional description...',
-              prefixIcon: const Icon(Icons.note_alt_outlined, size: 20),
-              filled: true,
-              fillColor: isDark ? AppColors.darkSurface : AppColors.lightBackground,
-              border: OutlineInputBorder(borderRadius: AppStyles.roundedM),
-            ),
-          ),
-          const SizedBox(height: 14),
-
-          // Receipt Attachment
-          if (_attachedReceiptSummary != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.incomeGreen.withValues(alpha: 0.15),
-                borderRadius: AppStyles.roundedM,
-                border: Border.all(
-                    color: AppColors.incomeGreen.withValues(alpha: 0.4)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.receipt_rounded,
-                      color: AppColors.incomeGreen, size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Attached: $_attachedReceiptSummary',
-                      style: const TextStyle(
-                        color: AppColors.incomeGreen,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded,
-                        size: 18, color: AppColors.incomeGreen),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    onPressed: () =>
-                        setState(() => _attachedReceiptSummary = null),
-                  ),
-                ],
-              ),
-            )
-          else
-            OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 48),
-                shape: RoundedRectangleBorder(borderRadius: AppStyles.roundedM),
-              ),
-              onPressed: () => _openReceiptScannerDialog(context),
-              icon: const Icon(Icons.receipt_long_rounded,
-                  color: AppColors.primary),
-              label: Text(
-                'Scan / Attach Receipt ✨',
-                style: TextStyle(
-                  color: isDark ? Colors.white : AppColors.lightTextPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          const SizedBox(height: 24),
-
-          // Action Buttons
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 52),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: AppStyles.roundedM),
-                  ),
-                  onPressed: () => _saveTransaction(addAnother: true),
-                  child: Text(
-                    'Save & Add Another',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? Colors.white : AppColors.lightTextPrimary,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 52),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: AppStyles.roundedM),
-                  ),
-                  onPressed: () => _saveTransaction(),
-                  child: Text(
-                    widget.initialTransaction != null
-                        ? 'Update Transaction'
-                        : 'Save Transaction',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          if (widget.initialTransaction != null) ...[
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.expense,
-                  side: const BorderSide(color: AppColors.expense),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape:
-                      RoundedRectangleBorder(borderRadius: AppStyles.roundedM),
-                ),
-                onPressed: _deleteTransaction,
-                icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                label: const Text('Delete Transaction',
-                    style: TextStyle(fontWeight: FontWeight.w700)),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // Receipt Scanner Preset Dialog
+  // Receipt Scanner Dialog
   void _openReceiptScannerDialog(BuildContext context) {
     final controller = TextEditingController();
 
@@ -1693,64 +1372,38 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             Text('Scan / Paste Receipt'),
           ],
         ),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Wrap(
+              spacing: 6,
               children: [
-                const Text(
-                  'Paste raw OCR receipt text or pick a sample receipt to auto-fill transaction details:',
-                  style: TextStyle(fontSize: 13),
+                ActionChip(
+                  label: const Text('☕ Starbucks (₹350)'),
+                  onPressed: () {
+                    controller.text =
+                        'STARBUCKS COFFEE\nDate: 15/09/2026\nLatte: 280\nCroissant: 70\nTOTAL: Rs. 350.00';
+                  },
                 ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    ActionChip(
-                      label: const Text('☕ Starbucks (₹350)',
-                          style: TextStyle(fontSize: 11)),
-                      onPressed: () {
-                        controller.text =
-                            'STARBUCKS COFFEE INDIRANAGAR\nDate: 12/09/2026\n1x Caffe Latte: 280.00\n1x Croissant: 70.00\nTOTAL AMOUNT: Rs. 350.00';
-                      },
-                    ),
-                    ActionChip(
-                      label: const Text('🛒 D-Mart (₹2,450)',
-                          style: TextStyle(fontSize: 11)),
-                      onPressed: () {
-                        controller.text =
-                            'DMART RETAIL SUPERMARKET\nDate: 11/09/2026\nGrocery items: 2450.00\nGRAND TOTAL: Rs. 2450.00';
-                      },
-                    ),
-                    ActionChip(
-                      label: const Text('⛽ Shell Fuel (₹1,200)',
-                          style: TextStyle(fontSize: 11)),
-                      onPressed: () {
-                        controller.text =
-                            'SHELL PETROL STATION\nDate: 10/09/2026\nPower Petrol: 1200.00\nNET AMOUNT: Rs. 1200.00';
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: controller,
-                  maxLines: 6,
-                  decoration: InputDecoration(
-                    hintText: 'Paste receipt text here...',
-                    filled: true,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                ActionChip(
+                  label: const Text('🛒 D-Mart (₹2,450)'),
+                  onPressed: () {
+                    controller.text =
+                        'DMART SUPERMARKET\nDate: 15/09/2026\nGroceries: 2450.00\nGRAND TOTAL: Rs. 2450.00';
+                  },
                 ),
               ],
             ),
-          ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: controller,
+              maxLines: 5,
+              decoration: const InputDecoration(
+                hintText: 'Paste receipt text...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -1785,16 +1438,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               });
 
               Navigator.of(ctx).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Receipt scanned! Auto-filled ${parsed.merchantName} - ₹${parsed.totalAmount.toStringAsFixed(0)}',
-                  ),
-                  backgroundColor: AppColors.incomeGreen,
-                ),
-              );
             },
-            child: const Text('Parse & Apply'),
+            child: const Text('Apply'),
           ),
         ],
       ),

@@ -132,5 +132,31 @@ void main() {
       acc = await accountRepo.getAccountById(accId);
       expect(acc?.balance, 850.0);
     });
+
+    test('watchAllTransactionTags streams all tag associations correctly', () async {
+      final accId = await accountRepo.createAccount(
+        name: 'Checking',
+        type: 'savings',
+        initialBalance: 1000.0,
+      );
+
+      final tag1 = await txnRepo.createTag(name: 'Shopping');
+      final tag2 = await txnRepo.createTag(name: 'Groceries');
+
+      final txnId = await txnRepo.createTransaction(
+        accountId: accId,
+        type: 'expense',
+        amount: 100.0,
+        transactionDate: DateTime.now(),
+        status: 'cleared',
+      );
+
+      await txnRepo.setTransactionTags(txnId, [tag1, tag2]);
+
+      final allTags = await txnRepo.watchAllTransactionTags().first;
+      expect(allTags.length, 2);
+      expect(allTags.map((e) => e.tagId).toSet(), {tag1, tag2});
+    });
   });
 }
+
