@@ -6,6 +6,7 @@ import '../../../core/constants/app_styles.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../accounts/data/account_repository.dart';
+import '../../auth/presentation/lock_screen.dart';
 import '../../navigation/presentation/side_drawer.dart';
 import '../../sms/data/sms_scanner_service.dart';
 import '../data/queue_repository.dart';
@@ -22,21 +23,44 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
   String _filter = 'all'; // 'all', 'today', 'week'
   bool _isScanning = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _loadSmsScanDays();
+  }
+
+  Future<void> _loadSmsScanDays() async {
+    final storage = ref.read(secureStorageProvider);
+    final val = await storage.read(key: 'sms_scan_days');
+    if (val != null) {
+      final parsed = int.tryParse(val);
+      if (parsed != null && mounted) {
+        ref.read(smsScanDaysProvider.notifier).state = parsed;
+      }
+    }
+  }
+
   Future<void> _scanSmsInbox() async {
     setState(() => _isScanning = true);
     final scanner = ref.read(smsScannerServiceProvider);
     final accounts = ref.read(activeAccountsStreamProvider).value ?? [];
+    final scanDays = ref.read(smsScanDaysProvider);
+    final windowLabel = formatScanDaysLabel(scanDays);
+
     try {
-      final report = await scanner.scanInbox(activeAccounts: accounts);
+      final report = await scanner.scanInbox(
+        days: scanDays,
+        activeAccounts: accounts,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             report.importedCount > 0
-                ? 'Scanned ${report.totalScanned} SMS • Found & staged ${report.importedCount} transactions!'
+                ? 'Scanned $windowLabel (${report.totalScanned} SMS) • Found & staged ${report.importedCount} transactions!'
                 : report.totalScanned > 0
-                    ? 'Scanned ${report.totalScanned} SMS • No new bank transactions found (${report.skippedDuplicates} duplicates skipped).'
-                    : 'SMS permission was not granted or inbox is empty.',
+                    ? 'Scanned $windowLabel (${report.totalScanned} SMS) • No new bank transactions found (${report.skippedDuplicates} duplicates skipped).'
+                    : 'SMS permission not granted or no SMS found in $windowLabel.',
           ),
           backgroundColor: report.importedCount > 0 ? AppColors.income : null,
           behavior: SnackBarBehavior.floating,
@@ -339,15 +363,29 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                         strokeWidth: 2, color: Colors.white),
                                   )
                                 : const Icon(Icons.sms_rounded),
-                            label: const Text(
-                              'Scan SMS Inbox',
-                              style: TextStyle(
+                            label: Text(
+                              'Scan SMS Inbox (${formatScanDaysLabel(ref.watch(smsScanDaysProvider))})',
+                              style: const TextStyle(
                                 fontWeight: FontWeight.w700,
-                                fontSize: 15,
+                                fontSize: 14,
                               ),
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 6),
+                          TextButton.icon(
+                            onPressed: () => widget.onNavigate('/settings'),
+                            icon: const Icon(Icons.tune_rounded, size: 14),
+                            label: Text(
+                              'Range: ${formatScanDaysLabel(ref.watch(smsScanDaysProvider))} • Change in Settings',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark
+                                    ? AppColors.darkTextSecondary
+                                    : AppColors.lightTextSecondary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
                           OutlinedButton.icon(
                             onPressed: _isScanning ? null : _injectDemoSms,
                             style: OutlinedButton.styleFrom(

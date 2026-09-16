@@ -85,9 +85,10 @@ class MainActivity : FlutterFragmentActivity() {
                     }
                 }
                 "readSmsInbox" -> {
-                    val limit = call.argument<Int>("limit") ?: 250
+                    val limit = call.argument<Int>("limit") ?: 500
+                    val sinceMillis = call.argument<Number>("sinceMillis")?.toLong() ?: 0L
                     try {
-                        val messages = readSmsMessages(limit)
+                        val messages = readSmsMessages(limit, sinceMillis)
                         result.success(messages)
                     } catch (e: Exception) {
                         result.error("SMS_READ_ERROR", e.message, null)
@@ -111,7 +112,7 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
-    private fun readSmsMessages(limit: Int): List<Map<String, Any>> {
+    private fun readSmsMessages(limit: Int, sinceMillis: Long = 0L): List<Map<String, Any>> {
         val list = mutableListOf<Map<String, Any>>()
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
             return list
@@ -123,11 +124,14 @@ class MainActivity : FlutterFragmentActivity() {
             Telephony.Sms.DATE
         )
 
+        val selection = if (sinceMillis > 0L) "${Telephony.Sms.DATE} >= ?" else null
+        val selectionArgs = if (sinceMillis > 0L) arrayOf(sinceMillis.toString()) else null
+
         val cursor = contentResolver.query(
             Telephony.Sms.Inbox.CONTENT_URI,
             projection,
-            null,
-            null,
+            selection,
+            selectionArgs,
             "${Telephony.Sms.DATE} DESC LIMIT $limit"
         )
 

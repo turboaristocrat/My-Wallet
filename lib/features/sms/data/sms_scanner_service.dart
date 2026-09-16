@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/parsing/regex_parser.dart';
 import '../../../core/parsing/transaction_deduplication.dart';
@@ -9,12 +10,31 @@ class ScanReport {
   final int totalScanned;
   final int importedCount;
   final int skippedDuplicates;
+  final int? lookbackDays;
 
   const ScanReport({
     required this.totalScanned,
     required this.importedCount,
     required this.skippedDuplicates,
+    this.lookbackDays,
   });
+}
+
+/// Lookback window in days for scanning SMS inbox. Defaults to 90 days (3 months).
+/// 0 represents "All Time".
+final smsScanDaysProvider = StateProvider<int>((ref) => 90);
+
+String formatScanDaysLabel(int days) {
+  if (days <= 0) return 'All Time';
+  if (days == 7) return '7 Days';
+  if (days == 15) return '15 Days';
+  if (days == 30) return '1 Month (30 Days)';
+  if (days == 60) return '2 Months (60 Days)';
+  if (days == 90) return '3 Months (90 Days)';
+  if (days == 180) return '6 Months (180 Days)';
+  if (days == 365) return '1 Year (365 Days)';
+  if (days % 30 == 0) return '${days ~/ 30} Months ($days Days)';
+  return '$days Days';
 }
 
 final smsScannerServiceProvider = Provider<SmsScannerService>((ref) {
@@ -61,29 +81,55 @@ class SmsScannerService {
 
   /// Scan device SMS inbox and stage financial transactions into review queue
   Future<ScanReport> scanInbox({
-    int limit = 250,
+    int? days,
+    int limit = 500,
     List<Account> activeAccounts = const [],
   }) async {
     final hasPerm = await checkPermission();
     if (!hasPerm) {
       final granted = await requestPermission();
       if (!granted) {
-        return const ScanReport(totalScanned: 0, importedCount: 0, skippedDuplicates: 0);
+        return ScanReport(
+          totalScanned: 0,
+          importedCount: 0,
+          skippedDuplicates: 0,
+          lookbackDays: days,
+        );
       }
+    }
+
+    int? sinceMillis;
+    if (days != null && days > 0) {
+      sinceMillis = DateTime.now()
+          .subtract(Duration(days: days))
+          .millisecondsSinceEpoch;
     }
 
     List<dynamic>? rawMessages;
     try {
       rawMessages = await _channel.invokeMethod<List<dynamic>>(
         'readSmsInbox',
-        {'limit': limit},
+        {
+          'limit': limit,
+          'sinceMillis': ?sinceMillis,
+        },
       );
     } catch (_) {
-      return const ScanReport(totalScanned: 0, importedCount: 0, skippedDuplicates: 0);
+      return ScanReport(
+        totalScanned: 0,
+        importedCount: 0,
+        skippedDuplicates: 0,
+        lookbackDays: days,
+      );
     }
 
     if (rawMessages == null || rawMessages.isEmpty) {
-      return const ScanReport(totalScanned: 0, importedCount: 0, skippedDuplicates: 0);
+      return ScanReport(
+        totalScanned: 0,
+        importedCount: 0,
+        skippedDuplicates: 0,
+        lookbackDays: days,
+      );
     }
 
     int imported = 0;
@@ -141,6 +187,7 @@ class SmsScannerService {
       totalScanned: rawMessages.length,
       importedCount: imported,
       skippedDuplicates: duplicates,
+      lookbackDays: days,
     );
   }
 

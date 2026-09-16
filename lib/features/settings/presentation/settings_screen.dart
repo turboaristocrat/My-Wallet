@@ -6,6 +6,7 @@ import '../../auth/presentation/lock_screen.dart';
 import '../../navigation/presentation/side_drawer.dart';
 import '../../categories/presentation/manage_categories_dialog.dart';
 import '../../sms/data/notification_listener_service.dart';
+import '../../sms/data/sms_scanner_service.dart';
 import '../../tags/presentation/manage_tags_dialog.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -25,12 +26,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _selectedCurrency = 'INR (₹)';
   bool _biometricsEnabled = true;
   bool _notificationListenerEnabled = false;
+  int _smsScanDays = 90;
 
   @override
   void initState() {
     super.initState();
     _loadProfileName();
     _checkNotificationListener();
+    _loadSmsScanDays();
+  }
+
+  Future<void> _loadSmsScanDays() async {
+    final storage = ref.read(secureStorageProvider);
+    final val = await storage.read(key: 'sms_scan_days');
+    if (val != null) {
+      final parsed = int.tryParse(val);
+      if (parsed != null && mounted) {
+        setState(() => _smsScanDays = parsed);
+        ref.read(smsScanDaysProvider.notifier).state = parsed;
+      }
+    }
   }
 
   Future<void> _checkNotificationListener() async {
@@ -400,6 +415,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                       const Divider(height: 1),
                       ListTile(
+                        leading: const Icon(Icons.history_toggle_off_rounded, color: AppColors.income),
+                        title: const Text('SMS Scan Lookback Window',
+                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                        subtitle: Text('Scan financial SMS from the past ${formatScanDaysLabel(_smsScanDays)}',
+                            style: const TextStyle(fontSize: 12)),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: () => _showSmsScanLookbackDialog(context, isDark),
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
                         leading: const Icon(Icons.bolt_rounded, color: AppColors.warning),
                         title: const Text('Automation Rules',
                             style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
@@ -712,6 +737,200 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: const Text('Save Name'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showSmsScanLookbackDialog(BuildContext context, bool isDark) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? AppColors.darkCard : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        final options = [
+          (days: 7, label: '7 Days', desc: 'Last 1 week of SMS messages'),
+          (days: 15, label: '15 Days', desc: 'Last 2 weeks of SMS messages'),
+          (days: 30, label: '1 Month (30 Days)', desc: 'Past month of transactions'),
+          (days: 60, label: '2 Months (60 Days)', desc: 'Past 2 months of transactions'),
+          (days: 90, label: '3 Months (90 Days)', desc: 'Recommended quarterly lookback'),
+          (days: 180, label: '6 Months (180 Days)', desc: 'Half-year of bank messages'),
+          (days: 365, label: '1 Year (365 Days)', desc: 'Full year of bank messages'),
+          (days: 0, label: 'All Time', desc: 'Scan all messages in your inbox'),
+        ];
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'SMS Scan Lookback Window',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                Text(
+                  'Choose how far back the parser scans your device SMS inbox for bank & UPI transactions.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: options.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, i) {
+                      final opt = options[i];
+                      final isSelected = _smsScanDays == opt.days;
+
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        title: Text(
+                          opt.label,
+                          style: TextStyle(
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            color: isSelected
+                                ? AppColors.primary
+                                : (isDark ? Colors.white : AppColors.lightTextPrimary),
+                          ),
+                        ),
+                        subtitle: Text(opt.desc, style: const TextStyle(fontSize: 12)),
+                        trailing: isSelected
+                            ? const Icon(Icons.check_circle_rounded, color: AppColors.primary)
+                            : null,
+                        onTap: () async {
+                          Navigator.pop(ctx);
+                          setState(() => _smsScanDays = opt.days);
+                          final storage = ref.read(secureStorageProvider);
+                          await storage.write(key: 'sms_scan_days', value: opt.days.toString());
+                          ref.read(smsScanDaysProvider.notifier).state = opt.days;
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _showCustomScanDaysDialog(context, isDark);
+                  },
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  icon: const Icon(Icons.edit_calendar_rounded, size: 18),
+                  label: const Text('Enter Custom Days / Months'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showCustomScanDaysDialog(BuildContext context, bool isDark) {
+    final controller = TextEditingController();
+    String unit = 'days'; // 'days' or 'months'
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDlgState) {
+          return AlertDialog(
+            backgroundColor: isDark ? AppColors.darkCard : Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text('Custom Lookback Period'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Specify the lookback window duration for scanning SMS messages:',
+                  style: TextStyle(fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: TextField(
+                        controller: controller,
+                        keyboardType: TextInputType.number,
+                        autofocus: true,
+                        decoration: InputDecoration(
+                          hintText: unit == 'days' ? 'e.g. 45' : 'e.g. 4',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: DropdownButtonFormField<String>(
+                        initialValue: unit,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'days', child: Text('Days')),
+                          DropdownMenuItem(value: 'months', child: Text('Months')),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) setDlgState(() => unit = val);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  final text = controller.text.trim();
+                  final num = int.tryParse(text);
+                  if (num == null || num <= 0) {
+                    return;
+                  }
+                  final totalDays = unit == 'months' ? num * 30 : num;
+                  Navigator.pop(ctx);
+                  setState(() => _smsScanDays = totalDays);
+                  final storage = ref.read(secureStorageProvider);
+                  await storage.write(key: 'sms_scan_days', value: totalDays.toString());
+                  ref.read(smsScanDaysProvider.notifier).state = totalDays;
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

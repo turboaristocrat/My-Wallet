@@ -12,6 +12,7 @@ import 'package:my_wallet/core/parsing/regex_parser.dart';
 import 'package:my_wallet/core/parsing/transaction_deduplication.dart';
 import 'package:my_wallet/core/parsing/vpa_cleaner.dart';
 import 'package:my_wallet/features/rules/data/rules_repository.dart';
+import 'package:my_wallet/features/sms/data/sms_scanner_service.dart';
 
 void main() {
   group('DLT Telecom Header & Bank Detector Tests', () {
@@ -289,6 +290,39 @@ void main() {
       );
       expect(match, isNotNull);
       expect(match!.isBlocked, isTrue);
+    });
+  });
+
+  group('SMS Scanner Lookback Period Tests', () {
+    test('formats standard lookback periods into readable descriptions', () {
+      expect(formatScanDaysLabel(0), 'All Time');
+      expect(formatScanDaysLabel(-1), 'All Time');
+      expect(formatScanDaysLabel(7), '7 Days');
+      expect(formatScanDaysLabel(15), '15 Days');
+      expect(formatScanDaysLabel(30), '1 Month (30 Days)');
+      expect(formatScanDaysLabel(60), '2 Months (60 Days)');
+      expect(formatScanDaysLabel(90), '3 Months (90 Days)');
+      expect(formatScanDaysLabel(180), '6 Months (180 Days)');
+      expect(formatScanDaysLabel(365), '1 Year (365 Days)');
+    });
+
+    test('formats custom day and month intervals correctly', () {
+      expect(formatScanDaysLabel(120), '4 Months (120 Days)');
+      expect(formatScanDaysLabel(45), '45 Days');
+      expect(formatScanDaysLabel(1), '1 Days');
+    });
+
+    test('ScanReport holds lookbackDays correctly', () {
+      const report = ScanReport(
+        totalScanned: 15,
+        importedCount: 10,
+        skippedDuplicates: 5,
+        lookbackDays: 60,
+      );
+      expect(report.lookbackDays, 60);
+      expect(report.totalScanned, 15);
+      expect(report.importedCount, 10);
+      expect(report.skippedDuplicates, 5);
     });
   });
 }
