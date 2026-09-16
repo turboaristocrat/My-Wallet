@@ -41,10 +41,36 @@ class MyWalletApp extends ConsumerStatefulWidget {
 
 class _MyWalletAppState extends ConsumerState<MyWalletApp> {
   String _currentRoute = '/dashboard';
+  final List<String> _navigationHistory = ['/dashboard'];
   bool _isUnlocked = false;
 
   void _navigateTo(String route) {
-    setState(() => _currentRoute = route);
+    if (route == _currentRoute) return;
+    setState(() {
+      if (route == '/dashboard') {
+        _navigationHistory.clear();
+        _navigationHistory.add('/dashboard');
+      } else {
+        _navigationHistory.remove(route);
+        _navigationHistory.add(route);
+      }
+      _currentRoute = route;
+    });
+  }
+
+  void _pop() {
+    if (_navigationHistory.length > 1) {
+      setState(() {
+        _navigationHistory.removeLast();
+        _currentRoute = _navigationHistory.last;
+      });
+    } else if (_currentRoute != '/dashboard') {
+      setState(() {
+        _currentRoute = '/dashboard';
+        _navigationHistory.clear();
+        _navigationHistory.add('/dashboard');
+      });
+    }
   }
 
   void _openAddTransaction() {
@@ -90,85 +116,94 @@ class _MyWalletAppState extends ConsumerState<MyWalletApp> {
             );
           }
 
-          // Main Navigation Router
-          Widget screenWidget;
-          switch (_currentRoute) {
-            case '/inbox':
-              screenWidget = InboxScreen(onNavigate: _navigateTo);
-              break;
-            case '/accounts':
-              screenWidget = AccountsScreen(onNavigate: _navigateTo);
-              break;
-            case '/transactions':
-              screenWidget = TransactionsScreen(onNavigate: _navigateTo);
-              break;
-            case '/analytics':
-              screenWidget = ReportsScreen(onNavigate: _navigateTo);
-              break;
-            case '/budgets':
-              screenWidget = BudgetsScreen(onNavigate: _navigateTo, initialTab: 'budgets');
-              break;
-            case '/goals':
-              screenWidget = BudgetsScreen(onNavigate: _navigateTo, initialTab: 'goals');
-              break;
-            case '/rules':
-              screenWidget = RulesScreen(onNavigate: _navigateTo);
-              break;
-            case '/recurring':
-              screenWidget = RecurringScreen(onNavigate: _navigateTo);
-              break;
-            case '/debts':
-              screenWidget = DebtsScreen(onNavigate: _navigateTo);
-              break;
-            case '/copilot':
-              screenWidget = CopilotScreen(onNavigate: _navigateTo);
-              break;
-            case '/split_expenses':
-              screenWidget = SplitExpensesScreen(onNavigate: _navigateTo);
-              break;
-            case '/investments':
-              screenWidget = InvestmentsScreen(onNavigate: _navigateTo);
-              break;
-            case '/gift_cards':
-            case '/shopping_lists':
-            case '/warranties':
-            case '/family_mode':
-              screenWidget = FeatureHubScreen(
-                route: _currentRoute,
-                onNavigate: _navigateTo,
-              );
-              break;
-            case '/settings':
-              screenWidget = SettingsScreen(onNavigate: _navigateTo);
-              break;
-            case '/backup':
-              screenWidget = BackupScreen(onNavigate: _navigateTo);
-              break;
-            case '/dashboard':
-            default:
-              screenWidget = DashboardScreen(
-                onOpenAddTransaction: _openAddTransaction,
-                onNavigate: _navigateTo,
-              );
-              break;
-          }
-
-          final showBottomNav = [
+          final primaryRoutes = [
             '/dashboard',
             '/accounts',
             '/transactions',
             '/analytics',
             '/settings',
-          ].contains(_currentRoute);
+          ];
 
-          return Scaffold(
-            body: screenWidget,
-            bottomNavigationBar: showBottomNav
-                ? AppBottomNavBar(
-                    currentRoute: _currentRoute,
-                    onNavigate: _navigateTo,
-                  )
-                : null,
+          final primaryIndex = primaryRoutes.indexOf(_currentRoute);
+          final isPrimaryTab = primaryIndex != -1;
+
+          // Sub-screens router
+          Widget subScreenWidget;
+          switch (_currentRoute) {
+            case '/inbox':
+              subScreenWidget = InboxScreen(onNavigate: _navigateTo);
+              break;
+            case '/budgets':
+              subScreenWidget = BudgetsScreen(onNavigate: _navigateTo, initialTab: 'budgets');
+              break;
+            case '/goals':
+              subScreenWidget = BudgetsScreen(onNavigate: _navigateTo, initialTab: 'goals');
+              break;
+            case '/rules':
+              subScreenWidget = RulesScreen(onNavigate: _navigateTo);
+              break;
+            case '/recurring':
+              subScreenWidget = RecurringScreen(onNavigate: _navigateTo);
+              break;
+            case '/debts':
+              subScreenWidget = DebtsScreen(onNavigate: _navigateTo);
+              break;
+            case '/copilot':
+              subScreenWidget = CopilotScreen(onNavigate: _navigateTo);
+              break;
+            case '/split_expenses':
+              subScreenWidget = SplitExpensesScreen(onNavigate: _navigateTo);
+              break;
+            case '/investments':
+              subScreenWidget = InvestmentsScreen(onNavigate: _navigateTo);
+              break;
+            case '/gift_cards':
+            case '/shopping_lists':
+            case '/warranties':
+            case '/family_mode':
+              subScreenWidget = FeatureHubScreen(
+                route: _currentRoute,
+                onNavigate: _navigateTo,
+              );
+              break;
+            case '/backup':
+              subScreenWidget = BackupScreen(onNavigate: _navigateTo);
+              break;
+            default:
+              subScreenWidget = const SizedBox.shrink();
+              break;
+          }
+
+          return PopScope(
+            canPop: _navigationHistory.length <= 1 && _currentRoute == '/dashboard',
+            onPopInvokedWithResult: (didPop, _) {
+              if (!didPop) {
+                _pop();
+              }
+            },
+            child: Scaffold(
+              body: isPrimaryTab
+                  ? IndexedStack(
+                      index: primaryIndex,
+                      children: [
+                        DashboardScreen(
+                          onOpenAddTransaction: _openAddTransaction,
+                          onNavigate: _navigateTo,
+                        ),
+                        AccountsScreen(onNavigate: _navigateTo),
+                        TransactionsScreen(onNavigate: _navigateTo),
+                        ReportsScreen(onNavigate: _navigateTo),
+                        SettingsScreen(onNavigate: _navigateTo),
+                      ],
+                    )
+                  : subScreenWidget,
+              bottomNavigationBar: isPrimaryTab
+                  ? AppBottomNavBar(
+                      currentRoute: _currentRoute,
+                      onNavigate: _navigateTo,
+                    )
+                  : null,
+            ),
           );
         },
         loading: () => const Scaffold(

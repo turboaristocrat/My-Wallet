@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
@@ -162,6 +163,13 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 
   void _onNumpadPress(String val) {
+    if (val == '=') {
+      HapticFeedback.mediumImpact();
+    } else if (val == '+' || val == '-' || val == '—' || val == '*' || val == '÷') {
+      HapticFeedback.selectionClick();
+    } else {
+      HapticFeedback.lightImpact();
+    }
     setState(() {
       if (val == 'C') {
         _amountStr = '0';
@@ -504,9 +512,16 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     final heroColor = isDark ? _heroBgDark : _heroBgLight;
     final inactiveTabColor = isDark ? _inactiveTabDark : _inactiveTabLight;
 
-    return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBackground : Colors.white,
-      body: SafeArea(
+    return PopScope(
+      canPop: !_isDetailsOpen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _isDetailsOpen) {
+          setState(() => _isDetailsOpen = false);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: isDark ? AppColors.darkBackground : Colors.white,
+        body: SafeArea(
         child: GestureDetector(
           onHorizontalDragEnd: (details) {
             if (details.primaryVelocity != null) {
@@ -763,6 +778,14 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                                                   .where((c) =>
                                                       c.id == _selectedCategoryId)
                                                   .firstOrNull;
+                                              final parentCat = (cat != null && cat.parentId != null)
+                                                  ? categories
+                                                      .where((c) => c.id == cat.parentId)
+                                                      .firstOrNull
+                                                  : null;
+                                              final displayName = parentCat != null
+                                                  ? '${parentCat.name.toUpperCase()} > ${cat!.name.toUpperCase()}'
+                                                  : (cat?.name.toUpperCase() ?? 'SELECT CATEGORY');
                                               return GestureDetector(
                                                 onTap: _pickCategory,
                                                 child: Column(
@@ -778,11 +801,12 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                                                       ),
                                                     ),
                                                     Text(
-                                                      cat?.name.toUpperCase() ??
-                                                          'SELECT CATEGORY',
+                                                      displayName,
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
                                                       style: const TextStyle(
                                                         color: Colors.white,
-                                                        fontSize: 15,
+                                                        fontSize: 14,
                                                         fontWeight: FontWeight.w700,
                                                       ),
                                                     ),
@@ -803,22 +827,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                     ),
                   ),
 
-                  // TEMPLATES Banner Strip (media_1789475202193.png)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    color: _templatesBg,
-                    alignment: Alignment.center,
-                    child: const Text(
-                      'TEMPLATES',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ),
+                  // Interactive Quick-Fill TEMPLATES Strip
+                  _buildTemplatesBar(categoriesAsync.value ?? []),
 
                   // 4-COLUMN CALCULATOR KEYPAD (media_1789475202193.png)
                   Expanded(
@@ -881,11 +891,13 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                               horizontal: 20, vertical: 14),
                           children: [
                             // 1. Note
-                            const Text(
+                            Text(
                               'Note',
                               style: TextStyle(
                                   fontSize: 13,
-                                  color: Colors.grey,
+                                  color: isDark
+                                      ? AppColors.darkTextSecondary
+                                      : AppColors.lightTextSecondary,
                                   fontWeight: FontWeight.w600),
                             ),
                             TextField(
@@ -894,22 +906,30 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                                   color: isDark
                                       ? Colors.white
                                       : AppColors.lightTextPrimary),
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 hintText: 'Description',
-                                hintStyle: TextStyle(color: Colors.grey),
+                                hintStyle: TextStyle(
+                                    color: isDark
+                                        ? AppColors.darkTextSecondary
+                                        : Colors.grey),
                                 border: UnderlineInputBorder(
-                                  borderSide: BorderSide(color: Colors.black12),
+                                  borderSide: BorderSide(
+                                      color: isDark
+                                          ? AppColors.darkBorder
+                                          : Colors.black12),
                                 ),
                               ),
                             ),
                             const SizedBox(height: 18),
 
                             // 2. Labels
-                            const Text(
+                            Text(
                               'Labels',
                               style: TextStyle(
                                   fontSize: 13,
-                                  color: Colors.grey,
+                                  color: isDark
+                                      ? AppColors.darkTextSecondary
+                                      : AppColors.lightTextSecondary,
                                   fontWeight: FontWeight.w600),
                             ),
                             const SizedBox(height: 8),
@@ -926,18 +946,22 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                                                 BorderRadius.circular(20)),
                                         padding: const EdgeInsets.symmetric(
                                             horizontal: 12, vertical: 6),
-                                        side: const BorderSide(
-                                            color: Colors.black26),
+                                        side: BorderSide(
+                                            color: isDark
+                                                ? AppColors.darkBorder
+                                                : Colors.black26),
                                       ),
                                       onPressed: _openAddTagDialog,
                                       icon: const Icon(
                                           Icons.add_circle_rounded,
-                                          color: Colors.blue,
+                                          color: AppColors.primary,
                                           size: 18),
-                                      label: const Text('Add label',
+                                      label: Text('Add label',
                                           style: TextStyle(
                                               fontSize: 13,
-                                              color: Colors.black87)),
+                                              color: isDark
+                                                  ? Colors.white70
+                                                  : AppColors.lightTextPrimary)),
                                     ),
                                     ...tags.map((tag) {
                                       final isSelected =
@@ -980,11 +1004,13 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                             const SizedBox(height: 18),
 
                             // 3. Payee
-                            const Text(
+                            Text(
                               'Payee',
                               style: TextStyle(
                                   fontSize: 13,
-                                  color: Colors.grey,
+                                  color: isDark
+                                      ? AppColors.darkTextSecondary
+                                      : AppColors.lightTextSecondary,
                                   fontWeight: FontWeight.w600),
                             ),
                             TextField(
@@ -993,11 +1019,17 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                                   color: isDark
                                       ? Colors.white
                                       : AppColors.lightTextPrimary),
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 hintText: 'Enter payee or merchant',
-                                hintStyle: TextStyle(color: Colors.grey),
+                                hintStyle: TextStyle(
+                                    color: isDark
+                                        ? AppColors.darkTextSecondary
+                                        : Colors.grey),
                                 border: UnderlineInputBorder(
-                                  borderSide: BorderSide(color: Colors.black12),
+                                  borderSide: BorderSide(
+                                      color: isDark
+                                          ? AppColors.darkBorder
+                                          : Colors.black12),
                                 ),
                               ),
                             ),
@@ -1011,11 +1043,13 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      const Text(
+                                      Text(
                                         'Date',
                                         style: TextStyle(
                                             fontSize: 13,
-                                            color: Colors.grey,
+                                            color: isDark
+                                                ? AppColors.darkTextSecondary
+                                                : AppColors.lightTextSecondary,
                                             fontWeight: FontWeight.w600),
                                       ),
                                       const SizedBox(height: 6),
@@ -1239,6 +1273,98 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           ),
         ),
       ),
+    ),
+  );
+}
+
+  // --- Interactive Quick-Fill Templates Strip ---
+  Widget _buildTemplatesBar(List<Category> categories) {
+    final templates = [
+      {'emoji': '☕', 'title': 'Coffee', 'amount': '150', 'kw': 'food'},
+      {'emoji': '🛒', 'title': 'Groceries', 'amount': '500', 'kw': 'shopping'},
+      {'emoji': '⛽', 'title': 'Fuel', 'amount': '1000', 'kw': 'transport'},
+      {'emoji': '🍔', 'title': 'Dining', 'amount': '350', 'kw': 'food'},
+      {'emoji': '⚡', 'title': 'Electricity', 'amount': '1500', 'kw': 'bills'},
+      {'emoji': '🎬', 'title': 'Cinema', 'amount': '400', 'kw': 'entertainment'},
+      {'emoji': '💊', 'title': 'Pharmacy', 'amount': '250', 'kw': 'health'},
+    ];
+
+    return Container(
+      width: double.infinity,
+      color: _templatesBg,
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: SizedBox(
+        height: 32,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          children: [
+            Container(
+              alignment: Alignment.center,
+              padding: const EdgeInsets.only(right: 8),
+              child: const Text(
+                'TEMPLATES',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.1,
+                ),
+              ),
+            ),
+            ...templates.map((tpl) {
+              return Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: InkWell(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    setState(() {
+                      _amountStr = tpl['amount']!;
+                      _payeeController.text = tpl['title']!;
+                      _noteController.text = '${tpl['title']} quick-entry';
+                      final kw = tpl['kw']!;
+                      final matchedCat = categories.where((c) {
+                        final n = c.name.toLowerCase();
+                        return n.contains(kw) ||
+                            (kw == 'food' && (n.contains('restaurant') || n.contains('dining') || n.contains('cafe'))) ||
+                            (kw == 'transport' && (n.contains('travel') || n.contains('vehicle') || n.contains('fuel'))) ||
+                            (kw == 'bills' && (n.contains('utilit') || n.contains('recharge')));
+                      }).firstOrNull;
+                      if (matchedCat != null) {
+                        _selectedCategoryId = matchedCat.id;
+                      }
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white24, width: 0.8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(tpl['emoji']!, style: const TextStyle(fontSize: 12)),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${tpl['title']} ₹${tpl['amount']}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1252,7 +1378,10 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     final isSelected = _type == typeVal;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _type = typeVal),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          setState(() => _type = typeVal);
+        },
         child: Container(
           color: isSelected ? activeBg : inactiveBg,
           padding: const EdgeInsets.symmetric(vertical: 12),

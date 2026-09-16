@@ -211,20 +211,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         ),
         actions: [
           IconButton(
-            tooltip: isDark ? 'Switch to Light' : 'Switch to Dark',
-            icon: Icon(
-              isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-              size: 20,
-              color: isDark
-                  ? AppColors.darkTextSecondary
-                  : AppColors.lightTextSecondary,
-            ),
-            onPressed: () {
-              ref.read(themeModeProvider.notifier).state =
-                  isDark ? ThemeMode.light : ThemeMode.dark;
-            },
-          ),
-          IconButton(
             tooltip: hideAmounts ? 'Show Amounts' : 'Hide Amounts',
             icon: Icon(
               hideAmounts
@@ -239,22 +225,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               ref.read(hideAmountsProvider.notifier).state = !hideAmounts;
             },
           ),
-          IconButton(
-            tooltip: 'Customize Dashboard',
-            icon: Icon(
-              Icons.tune_rounded,
-              size: 20,
-              color: isDark
-                  ? AppColors.darkTextSecondary
-                  : AppColors.lightTextSecondary,
-            ),
-            onPressed: () => _showConfigureDashboardSheet(context),
-          ),
           Stack(
             alignment: Alignment.center,
             children: [
               IconButton(
-                tooltip: 'Notifications',
+                tooltip: 'Inbox',
                 icon: Icon(
                   Icons.notifications_outlined,
                   size: 22,
@@ -301,12 +276,56 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             ),
             onPressed: () => widget.onNavigate('/copilot'),
           ),
-          const SizedBox(width: 4),
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: () => widget.onNavigate('/settings'),
+          PopupMenuButton<String>(
+            tooltip: 'Profile & Options',
+            offset: const Offset(0, 48),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            onSelected: (val) {
+              if (val == 'settings') widget.onNavigate('/settings');
+              if (val == 'customize') _showConfigureDashboardSheet(context);
+              if (val == 'theme') {
+                ref.read(themeModeProvider.notifier).state =
+                    isDark ? ThemeMode.light : ThemeMode.dark;
+              }
+            },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: 'customize',
+                child: Row(
+                  children: [
+                    Icon(Icons.tune_rounded, size: 20, color: AppColors.primary),
+                    SizedBox(width: 12),
+                    Text('Customize Dashboard'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'theme',
+                child: Row(
+                  children: [
+                    Icon(
+                      isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(isDark ? 'Switch to Light' : 'Switch to Dark'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'settings',
+                child: Row(
+                  children: [
+                    Icon(Icons.settings_rounded, size: 20),
+                    SizedBox(width: 12),
+                    Text('Settings'),
+                  ],
+                ),
+              ),
+            ],
+            child: Padding(
+              padding: const EdgeInsets.only(right: 16, left: 4),
               child: CircleAvatar(
                 radius: 17,
                 backgroundColor: AppColors.primary.withValues(alpha: 0.2),

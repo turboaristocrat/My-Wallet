@@ -170,41 +170,13 @@ class AppSideDrawer extends ConsumerWidget {
 
                   _buildDivider(isDark),
 
-                  // GROUP 4: Extras
+                  // GROUP 4: Collaboration & Extras
                   _buildDrawerItem(
                     context: context,
                     icon: Icons.group_rounded,
                     label: 'Split Expenses',
                     route: '/split_expenses',
                     isSelected: currentRoute == '/split_expenses',
-                  ),
-                  _buildDrawerItem(
-                    context: context,
-                    icon: Icons.card_giftcard_rounded,
-                    label: 'Gift Cards',
-                    route: '/gift_cards',
-                    isSelected: currentRoute == '/gift_cards',
-                  ),
-                  _buildDrawerItem(
-                    context: context,
-                    icon: Icons.shopping_cart_rounded,
-                    label: 'Shopping Lists',
-                    route: '/shopping_lists',
-                    isSelected: currentRoute == '/shopping_lists',
-                  ),
-                  _buildDrawerItem(
-                    context: context,
-                    icon: Icons.verified_user_rounded,
-                    label: 'Warranties',
-                    route: '/warranties',
-                    isSelected: currentRoute == '/warranties',
-                  ),
-                  _buildDrawerItem(
-                    context: context,
-                    icon: Icons.family_restroom_rounded,
-                    label: 'Family Mode',
-                    route: '/family_mode',
-                    isSelected: currentRoute == '/family_mode',
                   ),
 
                   _buildDivider(isDark),
