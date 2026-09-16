@@ -1,8 +1,13 @@
 package com.mywallet.my_wallet
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.provider.Settings
+import android.provider.Telephony
+import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -11,13 +16,16 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterFragmentActivity() {
     private val METHOD_CHANNEL = "com.mywallet.my_wallet/notifications"
     private val EVENT_CHANNEL = "com.mywallet.my_wallet/notification_events"
+    private val SMS_CHANNEL = "com.mywallet.my_wallet/sms"
 
     private var eventSink: EventChannel.EventSink? = null
+    private var pendingSmsResult: MethodChannel.Result? = null
+    private val SMS_PERMISSION_CODE = 1001
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        // MethodChannel for permission check and settings intent
+        // MethodChannel for notification listener
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, METHOD_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "isNotificationListenerEnabled" -> {
@@ -53,5 +61,96 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
         )
+
+        // MethodChannel for SMS Inbox querying
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SMS_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "checkSmsPermission" -> {
+                    val hasPerm = ContextCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.READ_SMS
+                    ) == PackageManager.PERMISSION_GRANTED
+                    result.success(hasPerm)
+                }
+                "requestSmsPermission" -> {
+                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED) {
+                        result.success(true)
+                    } else {
+                        pendingSmsResult = result
+                        ActivityCompat.requestPermissions(
+                            this,
+                            arrayOf(Manifest.permission.READ_SMS),
+                            SMS_PERMISSION_CODE
+                        )
+                    }
+                }
+                "readSmsInbox" -> {
+                    val limit = call.argument<Int>("limit") ?: 250
+                    try {
+                        val messages = readSmsMessages(limit)
+                        result.success(messages)
+                    } catch (e: Exception) {
+                        result.error("SMS_READ_ERROR", e.message, null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == SMS_PERMISSION_CODE) {
+            val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+            pendingSmsResult?.success(granted)
+            pendingSmsResult = null
+        }
+    }
+
+    private fun readSmsMessages(limit: Int): List<Map<String, Any>> {
+        val list = mutableListOf<Map<String, Any>>()
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
+            return list
+        }
+
+        val projection = arrayOf(
+            Telephony.Sms.ADDRESS,
+            Telephony.Sms.BODY,
+            Telephony.Sms.DATE
+        )
+
+        val cursor = contentResolver.query(
+            Telephony.Sms.Inbox.CONTENT_URI,
+            projection,
+            null,
+            null,
+            "${Telephony.Sms.DATE} DESC LIMIT $limit"
+        )
+
+        cursor?.use {
+            val addressIdx = it.getColumnIndex(Telephony.Sms.ADDRESS)
+            val bodyIdx = it.getColumnIndex(Telephony.Sms.BODY)
+            val dateIdx = it.getColumnIndex(Telephony.Sms.DATE)
+
+            while (it.moveToNext()) {
+                val address = if (addressIdx != -1) it.getString(addressIdx) ?: "" else ""
+                val body = if (bodyIdx != -1) it.getString(bodyIdx) ?: "" else ""
+                val date = if (dateIdx != -1) it.getLong(dateIdx) else System.currentTimeMillis()
+
+                list.add(
+                    mapOf(
+                        "address" to address,
+                        "body" to body,
+                        "date" to date
+                    )
+                )
+            }
+        }
+
+        return list
     }
 }

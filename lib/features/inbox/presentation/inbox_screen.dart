@@ -7,6 +7,7 @@ import '../../../core/theme/theme_provider.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../accounts/data/account_repository.dart';
 import '../../navigation/presentation/side_drawer.dart';
+import '../../sms/data/sms_scanner_service.dart';
 import '../data/queue_repository.dart';
 
 class InboxScreen extends ConsumerStatefulWidget {
@@ -19,6 +20,56 @@ class InboxScreen extends ConsumerStatefulWidget {
 
 class _InboxScreenState extends ConsumerState<InboxScreen> {
   String _filter = 'all'; // 'all', 'today', 'week'
+  bool _isScanning = false;
+
+  Future<void> _scanSmsInbox() async {
+    setState(() => _isScanning = true);
+    final scanner = ref.read(smsScannerServiceProvider);
+    final accounts = ref.read(activeAccountsStreamProvider).value ?? [];
+    try {
+      final report = await scanner.scanInbox(activeAccounts: accounts);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            report.importedCount > 0
+                ? 'Scanned ${report.totalScanned} SMS • Found & staged ${report.importedCount} transactions!'
+                : report.totalScanned > 0
+                    ? 'Scanned ${report.totalScanned} SMS • No new bank transactions found (${report.skippedDuplicates} duplicates skipped).'
+                    : 'SMS permission was not granted or inbox is empty.',
+          ),
+          backgroundColor: report.importedCount > 0 ? AppColors.income : null,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error scanning SMS: $e'), behavior: SnackBarBehavior.floating),
+      );
+    } finally {
+      if (mounted) setState(() => _isScanning = false);
+    }
+  }
+
+  Future<void> _injectDemoSms() async {
+    setState(() => _isScanning = true);
+    final scanner = ref.read(smsScannerServiceProvider);
+    final accounts = ref.read(activeAccountsStreamProvider).value ?? [];
+    try {
+      final count = await scanner.injectDemoTransactions(accounts);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Injected $count demo bank transactions into Inbox!'),
+          backgroundColor: AppColors.income,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isScanning = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -137,7 +188,47 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                 : const SizedBox(),
             orElse: () => const SizedBox(),
           ),
-          const SizedBox(width: 8),
+          IconButton(
+            icon: _isScanning
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.sync_rounded),
+            tooltip: 'Scan SMS',
+            onPressed: _isScanning ? null : _scanSmsInbox,
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert_rounded),
+            onSelected: (val) {
+              if (val == 'scan') _scanSmsInbox();
+              if (val == 'demo') _injectDemoSms();
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'scan',
+                child: Row(
+                  children: [
+                    Icon(Icons.sms_rounded, size: 20),
+                    SizedBox(width: 10),
+                    Text('Scan SMS Inbox'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'demo',
+                child: Row(
+                  children: [
+                    Icon(Icons.bolt_rounded, size: 20, color: AppColors.primary),
+                    SizedBox(width: 10),
+                    Text('Inject Demo SMS'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 4),
         ],
       ),
       body: Column(
@@ -226,6 +317,55 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                   ? AppColors.darkTextSecondary
                                   : AppColors.lightTextSecondary,
                               height: 1.45,
+                            ),
+                          ),
+                          const SizedBox(height: 28),
+                          ElevatedButton.icon(
+                            onPressed: _isScanning ? null : _scanSmsInbox,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 24, vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            icon: _isScanning
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2, color: Colors.white),
+                                  )
+                                : const Icon(Icons.sms_rounded),
+                            label: const Text(
+                              'Scan SMS Inbox',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: _isScanning ? null : _injectDemoSms,
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            icon: const Icon(Icons.bolt_rounded,
+                                color: AppColors.primary, size: 20),
+                            label: Text(
+                              'Test with Demo SMS',
+                              style: TextStyle(
+                                color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
                             ),
                           ),
                         ],
